@@ -23,7 +23,6 @@
 *.dll
 *.so.*
 
-
 # Fortran module files
 *.mod
 *.smod
@@ -67,3 +66,47 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Conan files
+conan_*.txt
+conaninfo.txt
+conanbuildinfo.*
+graph_info.json
+
+# Test results
+test_results/
+coverage_report/
+
+# Documentation build
+docs/build/
+
+# Local configuration
+config/local/
+*.local
+
+# Runtime data
+/var/tbox/
+/var/log/tbox/
+
+# Backup files
+*.backup
+*.bak
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# graphify
+graphify-out
+docs/superpowers

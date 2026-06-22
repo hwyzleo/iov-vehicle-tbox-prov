@@ -1,0 +1,49 @@
+# TBOX PROV Service Configuration
+
+# 存储配置
+storage:
+  # 存储路径
+  path: "/var/tbox/prov"
+  # 写保护使能
+  enable_write_protection: true
+  # 最大重试次数
+  max_retry_count: 3
+
+# UDS配置
+uds:
+  # 安全访问配置
+  security_access:
+    # 支持的安全级别
+    supported_levels:
+      - 0x27
+      - 0x29
+    # 种子长度
+    seed_length: 4
+    # 密钥长度
+    key_length: 4
+
+# DID配置
+did:
+  vin: 0xF190
+  vehicle_binding: 0xF191
+  provision_state: 0xF192
+  vehicle_config: 0xF193
+  production_info: 0xF194
+
+# RID配置
+rid:
+  rewrite_routine: 0xFF00
+
+# 日志配置
+logging:
+  level: "INFO"
+  file: "/var/log/tbox/prov.log"
+  max_size: 10485760  # 10MB
+  max_files: 5
+
+# 监控配置
+monitoring:
+  # 健康检查间隔（秒）
+  health_check_interval: 30
+  # 状态上报间隔（秒）
+  status_report_interval: 60
