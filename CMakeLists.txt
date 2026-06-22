@@ -37,7 +37,6 @@ find_package(nlohmann_json REQUIRED)
 # Library source files (without main.cpp)
 set(LIB_SOURCES
     src/prov_service.cpp
-    src/uds_handler.cpp
     src/protected_storage.cpp
     src/ecu_uid.cpp
     src/vin_validator.cpp
@@ -58,7 +57,6 @@ target_link_libraries(TboxProvService PRIVATE TboxProvLib)
 enable_testing()
 add_executable(TboxProvTests
     tests/test_prov_service.cpp
-    tests/test_uds_handler.cpp
     tests/test_protected_storage.cpp
     tests/test_vin_validator.cpp
     tests/test_data_models.cpp
