@@ -10,10 +10,9 @@ namespace prov {
 
 // SE硬件检测（实际实现中应检测SE硬件是否存在）
 bool EcuUid::is_se_hardware_present() {
-    // 实际实现中，这里会检测SE硬件是否在位
-    // 例如：检查设备文件、读取硬件状态寄存器等
-    // 这里返回true用于测试
-    return true;
+    // 测试配置文件路径：return false;
+    // 生产环境：return true;
+    return false;  // 临时改为 false，测试配置文件路径
 }
 
 // 检查是否为测试环境
