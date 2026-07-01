@@ -152,3 +152,57 @@ PROV 服务通过 DIAG 服务的 `RealProvAdapter` 适配器进行调用。DIAG 
 - DTC/NRC 映射
 
 PROV 服务专注于业务逻辑，不感知诊断细节。
+
+## 获取 ECU UID
+
+ECU UID 通过 `read_binding()` 接口获取：
+
+```cpp
+VehicleBinding binding = prov_service.read_binding();
+std::string ecu_uid = binding.ecu_uid;
+```
+
+**使用场景：**
+- SEC 服务构造 CSR 时需要 ECU UID
+- RSMS 国标上报
+- TSP 上线注册
+
+## 测试环境配置文件
+
+在测试环境（无 SE 硬件）中，PROV 服务支持从配置文件读取 UID 作为兜底方案。
+
+### 配置文件位置
+
+按优先级查找：
+1. `/etc/tbox/prov_test.conf`（绝对路径，生产测试环境）
+2. `./config/prov_test.conf`（相对路径，开发环境推荐）
+
+### 配置文件格式
+
+```ini
+# PROV 测试环境配置文件
+# 仅用于测试环境，生产环境不使用此文件
+#
+# 格式: key=value
+# 键: uid, 值: ECU UID 串（8-32位）
+
+uid=0123456789ABCDEF
+```
+
+### 使用步骤
+
+1. 复制示例文件：
+   ```bash
+   cp config/prov_test.conf.example config/prov_test.conf
+   ```
+
+2. 修改 `uid` 值为实际的 ECU UID
+
+3. 重新编译（需要定义 `TEST_ENVIRONMENT` 编译宏）
+
+### 注意事项
+
+- 此配置文件**仅用于测试环境**
+- 生产环境必须使用 SE 硬件读取 UID
+- 生产环境无 SE 时会返回 `PROV-1010` 错误（fail-closed）
+- 配置文件不做完整性/防篡改保护
