@@ -66,3 +66,8 @@ add_executable(TboxProvTests
 target_link_libraries(TboxProvTests PRIVATE TboxProvLib GTest::GTest GTest::Main)
 target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)
 add_test(NAME TboxProvTests COMMAND TboxProvTests)
+
+# CLI tool for testing
+add_executable(prov_cli src/prov_cli.cpp)
+target_link_libraries(prov_cli PRIVATE TboxProvLib)
+target_compile_definitions(prov_cli PRIVATE TEST_ENVIRONMENT)
