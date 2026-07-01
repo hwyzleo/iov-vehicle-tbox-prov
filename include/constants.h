@@ -46,6 +46,8 @@ namespace NvmPartition {
 // 配置文件路径
 namespace ConfigPath {
     const std::string DEFAULT_CONFIG = "/etc/tbox/prov_config.yaml";
+    const std::string TEST_UID_CONFIG = "/etc/tbox/prov_test.conf";
+    const std::string TEST_UID_CONFIG_LOCAL = "./config/prov_test.conf";
 }
 
 } // namespace prov
