@@ -30,6 +30,15 @@ enum class ErrorCode : uint32_t {
     // PROV-1007: 生产信息写入失败
     PRODUCTION_INFO_WRITE_FAILED = 1007,
     
+    // PROV-1008: SE UID 读取失败/超时（SE 在位）
+    SE_UID_READ_FAILED = 1008,
+    
+    // PROV-1009: 无 SE（硬件缺失）且配置文件缺失/无对应 UID
+    SE_MISSING_CONFIG_NOT_FOUND = 1009,
+    
+    // PROV-1010: 生产环境无 SE，禁止配置文件兜底
+    SE_MISSING_PRODUCTION_FAIL_CLOSED = 1010,
+    
     // 内部错误码
     INTERNAL_ERROR = 9999,
     STORAGE_ERROR = 9998,
