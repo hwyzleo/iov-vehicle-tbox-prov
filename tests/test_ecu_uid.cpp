@@ -61,8 +61,8 @@ TEST_F(EcuUidTest, IsTestEnvironment) {
     // 测试环境检测
     // 注意：这个测试依赖于编译开关 TEST_ENVIRONMENT
     bool is_test = EcuUid::is_test_environment();
-    // 验证返回值是布尔类型（编译通过即验证）
-    (void)is_test;
+    // 验证测试环境标志已正确设置
+    EXPECT_TRUE(is_test);
 }
 
 TEST_F(EcuUidTest, ReadUidFromConfigFileSuccess) {
@@ -89,15 +89,20 @@ TEST_F(EcuUidTest, ReadUidFromConfigFileSuccess) {
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "TEST_UID_12345");
     
-    // 清理测试文件
+    // 清理测试文件（不删除目录，因为可能包含其他文件）
     std::filesystem::remove(config_file_path);
-    std::filesystem::remove(config_dir);
 }
 
 TEST_F(EcuUidTest, ReadUidFromConfigFileNotFound) {
     // 测试配置文件不存在的情况
     // read_uid_from_config_file() 依赖 /etc/tbox/prov_test.conf 和 ./config/prov_test.conf
-    // 在测试环境中，这些文件通常不存在，应返回 std::nullopt
+    // 清理可能存在的配置文件，确保测试环境干净
+    std::filesystem::path local_config = "./config/prov_test.conf";
+    if (std::filesystem::exists(local_config)) {
+        std::filesystem::remove(local_config);
+    }
+    // 注意：/etc/tbox/prov_test.conf 需要权限才能删除，这里假设测试环境没有该文件
+    // 如果测试机存在该文件，此测试可能需要调整
     auto result = EcuUid::read_uid_from_config_file();
     EXPECT_FALSE(result.has_value());
 }

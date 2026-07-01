@@ -48,6 +48,7 @@ set(LIB_SOURCES
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
 target_include_directories(TboxProvLib PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(TboxProvLib PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json)
+target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 
 # Main executable
 add_executable(TboxProvService src/main.cpp)
