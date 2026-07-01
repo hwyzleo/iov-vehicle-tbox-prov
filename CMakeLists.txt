@@ -60,6 +60,7 @@ add_executable(TboxProvTests
     tests/test_protected_storage.cpp
     tests/test_vin_validator.cpp
     tests/test_data_models.cpp
+    tests/test_ecu_uid.cpp
 )
 target_link_libraries(TboxProvTests PRIVATE TboxProvLib GTest::GTest GTest::Main)
 add_test(NAME TboxProvTests COMMAND TboxProvTests)
