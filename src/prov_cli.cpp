@@ -69,11 +69,23 @@ int main(int argc, char* argv[]) {
         }
     }
     else if (command == "read_uid") {
-        VehicleBinding binding = service.read_binding();
-        if (binding.ecu_uid.empty()) {
-            std::cout << "ECU UID: (not available)" << std::endl;
+        // 主动读取 ECU UID（不依赖绑定）
+        EcuUid uid_reader;
+        auto uid_result = uid_reader.read_uid_detailed();
+        if (uid_result.success) {
+            std::cout << "ECU UID: " << uid_result.uid << std::endl;
+            std::cout << "Source: ";
+            if (uid_reader.is_se_hardware_present()) {
+                std::cout << "SE hardware" << std::endl;
+            } else if (uid_reader.is_test_environment()) {
+                std::cout << "Config file (test environment)" << std::endl;
+            } else {
+                std::cout << "Unknown" << std::endl;
+            }
         } else {
-            std::cout << "ECU UID: " << binding.ecu_uid << std::endl;
+            std::cerr << "Failed to read ECU UID: " << uid_result.error_message << std::endl;
+            std::cerr << "Error Code: " << error_code_to_string(uid_result.error_code) << std::endl;
+            return 1;
         }
     }
     else if (command == "read_binding") {
