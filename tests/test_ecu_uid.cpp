@@ -81,10 +81,37 @@ TEST_F(EcuUidTest, ReadUidFromConfigFileSuccess) {
 
 TEST_F(EcuUidTest, ReadUidFromConfigFileNotFound) {
     // 测试配置文件不存在的情况
+    // read_uid_from_config_file() 依赖 /etc/tbox/prov_test.conf 和 ./config/prov_test.conf
+    // 在测试环境中，这些文件通常不存在，应返回 std::nullopt
     auto result = EcuUid::read_uid_from_config_file();
-    // 在测试环境中，如果配置文件不存在，应该返回nullopt
-    // 注意：这个测试依赖于实际文件系统状态
+    EXPECT_FALSE(result.has_value());
 }
+
+// PROV-1008 测试：SE读取失败/超时
+// 注意：当前架构无法实现此测试，因为：
+// 1. is_se_hardware_present() 是静态方法，硬编码返回 true
+// 2. read_from_se() 是静态方法，硬编码返回 "SE987654321"
+// 3. 没有依赖注入机制来 mock 这些方法
+// 要实现此测试，需要重构 EcuUid 类引入虚拟方法或测试钩子
+// TEST_F(EcuUidTest, ReadUidSeReadFailed) {
+//     auto result = EcuUid::read_uid_detailed();
+//     EXPECT_FALSE(result.success);
+//     EXPECT_EQ(result.error_code, ErrorCode::SE_UID_READ_FAILED);
+// }
+
+// PROV-1010 测试：生产环境无SE
+// 注意：当前架构无法实现此测试，因为：
+// 1. is_se_hardware_present() 是静态方法，硬编码返回 true
+// 2. is_test_environment() 依赖编译开关 TEST_ENVIRONMENT（当前未定义）
+// 3. 没有依赖注入机制来 mock 这些方法
+// 要实现此测试，需要：
+//   - 在 CMakeLists.txt 中添加 TEST_ENVIRONMENT 编译选项用于测试
+//   - 或重构 EcuUid 类引入虚拟方法或测试钩子
+// TEST_F(EcuUidTest, ReadUidProductionEnvNoSe) {
+//     auto result = EcuUid::read_uid_detailed();
+//     EXPECT_FALSE(result.success);
+//     EXPECT_EQ(result.error_code, ErrorCode::SE_MISSING_PRODUCTION_FAIL_CLOSED);
+// }
 
 } // namespace testing
 } // namespace prov
