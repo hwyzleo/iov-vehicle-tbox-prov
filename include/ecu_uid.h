@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 #include <optional>
+#include "error_codes.h"
 
 namespace tbox {
 namespace prov {
@@ -11,11 +12,12 @@ namespace prov {
 struct UidReadResult {
     std::string uid;
     bool success;
+    ErrorCode error_code;
     std::string error_message;
     
-    UidReadResult() : success(false) {}
-    UidReadResult(const std::string& uid) : uid(uid), success(true) {}
-    UidReadResult(const std::string& error, bool /*is_error*/) : success(false), error_message(error) {}
+    UidReadResult() : success(false), error_code(ErrorCode::SUCCESS) {}
+    UidReadResult(const std::string& uid) : uid(uid), success(true), error_code(ErrorCode::SUCCESS) {}
+    UidReadResult(ErrorCode code, const std::string& error) : success(false), error_code(code), error_message(error) {}
 };
 
 class EcuUid {
