@@ -213,10 +213,13 @@ ErrorCode ProvService::initialize_storage() {
 
 ErrorCode ProvService::execute_vin_binding_flow(const std::string& vin) {
     // 读取ECU UID
-    std::string ecu_uid = read_ecu_uid();
-    if (ecu_uid.empty()) {
-        return ErrorCode::ECU_UID_READ_ERROR;
+    auto uid_result = EcuUid::read_uid_detailed();
+    if (!uid_result.success) {
+        // 根据错误码判断错误类型
+        return uid_result.error_code;
     }
+    
+    std::string ecu_uid = uid_result.uid;
     
     // 建立绑定
     ErrorCode result = establish_binding(vin, ecu_uid);
