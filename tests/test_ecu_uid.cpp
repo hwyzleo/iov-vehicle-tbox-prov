@@ -67,16 +67,31 @@ TEST_F(EcuUidTest, IsTestEnvironment) {
 
 TEST_F(EcuUidTest, ReadUidFromConfigFileSuccess) {
     // 测试从配置文件读取UID
-    std::string config_path = test_dir_ + "/prov_test.conf";
-    std::ofstream config_file(config_path);
-    config_file << "# Test config\n";
-    config_file << "uid=TEST_UID_12345\n";
-    config_file.close();
-
-    // 注意：这个测试需要修改常量或使用mock
-    // 这里仅测试解析逻辑
+    // read_uid_from_config_file() reads from ConfigPath::TEST_UID_CONFIG_LOCAL (./config/prov_test.conf)
+    std::filesystem::path config_dir = "./config";
+    std::filesystem::path config_file_path = config_dir / "prov_test.conf";
+    
+    // 创建配置目录
+    std::filesystem::create_directories(config_dir);
+    
+    // 写入测试配置文件
+    {
+        std::ofstream config_file(config_file_path);
+        config_file << "# Test config\n";
+        config_file << "uid=TEST_UID_12345\n";
+        config_file.close();
+    }
+    
+    // 调用被测函数
     auto result = EcuUid::read_uid_from_config_file();
-    // 在实际测试中，这里应该返回TEST_UID_12345
+    
+    // 验证结果
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value(), "TEST_UID_12345");
+    
+    // 清理测试文件
+    std::filesystem::remove(config_file_path);
+    std::filesystem::remove(config_dir);
 }
 
 TEST_F(EcuUidTest, ReadUidFromConfigFileNotFound) {

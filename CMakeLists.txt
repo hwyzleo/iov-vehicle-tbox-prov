@@ -63,4 +63,5 @@ add_executable(TboxProvTests
     tests/test_ecu_uid.cpp
 )
 target_link_libraries(TboxProvTests PRIVATE TboxProvLib GTest::GTest GTest::Main)
+target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)
 add_test(NAME TboxProvTests COMMAND TboxProvTests)
