@@ -3,10 +3,7 @@
 #include "error_codes.h"
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <filesystem>
-#include <chrono>
-#include <thread>
 
 namespace tbox {
 namespace prov {
@@ -113,7 +110,7 @@ UidReadResult EcuUid::read_uid_detailed() {
         }
         
         // SE读取失败，返回PROV-1008错误
-        return UidReadResult("SE UID读取失败/超时", false);
+        return UidReadResult(ErrorCode::SE_UID_READ_FAILED, "SE UID读取失败/超时");
     }
     
     // 2. SE硬件缺失
@@ -125,11 +122,11 @@ UidReadResult EcuUid::read_uid_detailed() {
         }
         
         // 配置文件缺失或无对应UID，返回PROV-1009错误
-        return UidReadResult("无SE且配置文件缺失/无对应UID", false);
+        return UidReadResult(ErrorCode::SE_MISSING_CONFIG_NOT_FOUND, "无SE且配置文件缺失/无对应UID");
     }
     
     // 3. 生产环境无SE，返回PROV-1010错误（fail-closed）
-    return UidReadResult("生产环境无SE，禁止配置文件兜底", false);
+    return UidReadResult(ErrorCode::SE_MISSING_PRODUCTION_FAIL_CLOSED, "生产环境无SE，禁止配置文件兜底");
 }
 
 bool EcuUid::validate(const std::string& uid) {
