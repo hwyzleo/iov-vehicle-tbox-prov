@@ -1,4 +1,10 @@
 # TBOX PROV Service Configuration
+# 此文件可部署为 /etc/tbox/conf.d/prov.yaml（服务专属配置）
+
+# ECU配置
+ecu:
+  # ECU UID（仅测试环境使用，生产环境从SE读取）
+  uid: "00000000000000000000000000000001"
 
 # 存储配置
 storage:

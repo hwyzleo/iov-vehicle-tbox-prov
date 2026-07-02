@@ -50,7 +50,7 @@ iov-vehicle-tbox-prov/
 │   ├── deployment.md           # 部署文档
 │   └── build-and-verify.md     # 编译与验证指南
 ├── config/                     # 配置文件
-│   └── prov_config.yaml        # 配置文件示例
+│   └── prov_config.yaml        # 服务配置文件示例（部署为 /etc/tbox/conf.d/prov.yaml）
 ├── scripts/                    # 脚本
 │   ├── build.sh                # 构建脚本
 │   └── test.sh                 # 测试脚本
@@ -66,7 +66,7 @@ iov-vehicle-tbox-prov/
 - C++17 编译器
 - CMake ≥ 3.10
 - Conan ≥ 2.0
-- yaml-cpp
+- [iov-vehicle-tbox-framework](../iov-vehicle-tbox-framework) - HWYZ 框架（提供配置管理、yaml-cpp、spdlog）
 - nlohmann_json
 - Google Test（用于测试）
 
@@ -119,16 +119,25 @@ ctest --output-on-failure
 ```bash
 # 手动启动
 ./TboxProvService
-
-# 或者指定配置文件
-./TboxProvService --config /etc/tbox/prov_config.yaml
 ```
 
 ## 配置说明
 
-配置文件位于 `/etc/tbox/prov_config.yaml`，主要配置项：
+使用框架 `ConfigManager` 三层配置体系：
+
+| 层级 | 文件路径 | 是否必需 |
+|------|----------|----------|
+| Common | `/etc/tbox/common.yaml` | 是 |
+| Service | `/etc/tbox/conf.d/prov.yaml` | 否 |
+| Local | `./prov.yaml`（当前工作目录） | 否 |
+
+服务专属配置示例（`/etc/tbox/conf.d/prov.yaml`）：
 
 ```yaml
+# ECU配置
+ecu:
+  uid: "00000000000000000000000000000001"  # 仅测试环境
+
 # 存储配置
 storage:
   path: "/var/tbox/prov"
@@ -156,9 +165,21 @@ did:
 ### 初始化服务
 
 ```cpp
+#include "config.h"
+#include "prov_service.h"
+
+// 加载框架配置
+auto err = CONFIG_MANAGER.load("prov");
+if (err != hwyz::config::ConfigError::kOk) {
+    return 1;
+}
+
+// 从配置读取服务参数
+auto cfg = CONFIG_SNAPSHOT;
 tbox::prov::ProvServiceConfig config;
-config.storage_path = "/var/tbox/prov";
-config.enable_write_protection = true;
+config.storage_path = cfg->getString("storage.path", "/var/tbox/prov");
+config.enable_write_protection = cfg->getBool("storage.enable_write_protection", true);
+config.max_retry_count = cfg->getInt("storage.max_retry_count", 3);
 
 tbox::prov::ProvService service(config);
 auto result = service.initialize();
@@ -204,29 +225,7 @@ auto state = service.get_provision_state();
 - [部署文档](docs/deployment.md) - 部署和运维指南
 - [编译与验证指南](docs/build-and-verify.md) - 本地编译 vs Docker 交叉编译
 
-## 开发计划
-
-详细的开发计划请参考 [开发计划文档](docs/superpowers/plans/2026-06-20-tbox-prov-implementation.md)。
-
 ## 依赖项目
 
 - [iov-vehicle-tbox-sec](../iov-vehicle-tbox-sec) - 安全服务（提供安全访问机制）
 - [iov-vehicle-tbox-framework](../iov-vehicle-tbox-framework) - 基础框架
-
-## 许可证
-
-本项目采用 [LICENSE](LICENSE) 许可证。
-
-## 贡献指南
-
-1. Fork 本仓库
-2. 创建功能分支 (`git checkout -b feature/xxx`)
-3. 提交更改 (`git commit -am 'Add feature'`)
-4. 推送到分支 (`git push origin feature/xxx`)
-5. 创建 Pull Request
-
-## 联系方式
-
-- 项目维护者：[维护者姓名]
-- 邮箱：[邮箱地址]
-- 问题反馈：[Issues 页面]

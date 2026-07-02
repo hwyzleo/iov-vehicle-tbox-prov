@@ -1,9 +1,7 @@
 #include "ecu_uid.h"
-#include "constants.h"
+#include "config.h"
 #include "error_codes.h"
 #include <iostream>
-#include <fstream>
-#include <filesystem>
 
 namespace tbox {
 namespace prov {
@@ -17,9 +15,6 @@ bool EcuUid::is_se_hardware_present() {
 
 // 检查是否为测试环境
 bool EcuUid::is_test_environment() {
-    // 实际实现中，这里会检查编译开关或环境变量
-    // 例如：#ifdef TEST_ENVIRONMENT 或检查环境变量
-    // 这里返回true用于测试
 #ifdef TEST_ENVIRONMENT
     return true;
 #else
@@ -27,64 +22,23 @@ bool EcuUid::is_test_environment() {
 #endif
 }
 
-// 从配置文件读取UID
-std::optional<std::string> EcuUid::read_uid_from_config_file() {
-    // 首先尝试绝对路径
-    auto result = parse_config_file(ConfigPath::TEST_UID_CONFIG);
-    if (result.has_value()) {
-        return result;
+// 从配置读取UID（使用框架ConfigManager）
+std::optional<std::string> EcuUid::read_uid_from_config() {
+    auto cfg = CONFIG_SNAPSHOT;
+    if (!cfg) {
+        return std::nullopt;
     }
-    
-    // 然后尝试相对路径
-    result = parse_config_file(ConfigPath::TEST_UID_CONFIG_LOCAL);
-    if (result.has_value()) {
-        return result;
-    }
-    
-    return std::nullopt;
-}
 
-// 解析配置文件
-std::optional<std::string> EcuUid::parse_config_file(const std::string& file_path) {
-    try {
-        if (!std::filesystem::exists(file_path)) {
-            return std::nullopt;
-        }
-        
-        std::ifstream file(file_path);
-        if (!file.is_open()) {
-            return std::nullopt;
-        }
-        
-        std::string line;
-        while (std::getline(file, line)) {
-            // 跳过注释和空行
-            if (line.empty() || line[0] == '#') {
-                continue;
-            }
-            
-            // 解析 key=value
-            size_t eq_pos = line.find('=');
-            if (eq_pos != std::string::npos) {
-                std::string key = line.substr(0, eq_pos);
-                std::string value = line.substr(eq_pos + 1);
-                
-                // 去除首尾空格
-                key.erase(0, key.find_first_not_of(" \t"));
-                key.erase(key.find_last_not_of(" \t") + 1);
-                value.erase(0, value.find_first_not_of(" \t"));
-                value.erase(value.find_last_not_of(" \t") + 1);
-                
-                if (key == "uid" && !value.empty()) {
-                    return value;
-                }
-            }
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Error reading config file: " << e.what() << std::endl;
+    if (!cfg->has("ecu.uid")) {
+        return std::nullopt;
     }
-    
-    return std::nullopt;
+
+    std::string uid = cfg->getString("ecu.uid");
+    if (uid.empty()) {
+        return std::nullopt;
+    }
+
+    return uid;
 }
 
 // 从SE读取UID
@@ -114,14 +68,14 @@ UidReadResult EcuUid::read_uid_detailed() {
     
     // 2. SE硬件缺失
     if (is_test_environment()) {
-        // 测试环境，尝试从配置文件读取
-        auto config_uid = read_uid_from_config_file();
+        // 测试环境，尝试从配置读取（使用框架ConfigManager）
+        auto config_uid = read_uid_from_config();
         if (config_uid.has_value()) {
             return UidReadResult(config_uid.value());
         }
         
-        // 配置文件缺失或无对应UID，返回PROV-1009错误
-        return UidReadResult(ErrorCode::SE_MISSING_CONFIG_NOT_FOUND, "无SE且配置文件缺失/无对应UID");
+        // 配置缺失或无对应UID，返回PROV-1009错误
+        return UidReadResult(ErrorCode::SE_MISSING_CONFIG_NOT_FOUND, "无SE且配置缺失/无对应UID");
     }
     
     // 3. 生产环境无SE，返回PROV-1010错误（fail-closed）

@@ -23,9 +23,8 @@ elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     endif ()
 endif ()
 
-# YAML-CPP
-find_package(yaml-cpp REQUIRED)
-include_directories(${YAML_CPP_INCLUDE_DIRS})
+# HWYZ Framework (provides yaml-cpp, spdlog, config management)
+find_package(HWYZ REQUIRED)
 
 # Google Test
 find_package(GTest REQUIRED)
@@ -47,7 +46,8 @@ set(LIB_SOURCES
 # Static library for other modules to link against
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
 target_include_directories(TboxProvLib PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(TboxProvLib PUBLIC yaml-cpp::yaml-cpp nlohmann_json::nlohmann_json)
+target_link_libraries(TboxProvLib PUBLIC ${HWYZ_LIBRARIES} nlohmann_json::nlohmann_json)
+target_include_directories(TboxProvLib PUBLIC ${HWYZ_INCLUDE_DIR})
 target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 
 # Main executable

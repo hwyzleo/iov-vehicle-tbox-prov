@@ -18,7 +18,7 @@
 - **操作系统**：Linux (Yocto/Debian/Ubuntu)
 - **内核版本**：≥ 4.14
 - **C++运行时**：libstdc++ 6
-- **依赖库**：yaml-cpp, nlohmann_json
+- **依赖库**：[iov-vehicle-tbox-framework](../iov-vehicle-tbox-framework)（提供 yaml-cpp、spdlog、配置管理）, nlohmann_json
 
 ## 依赖安装
 
@@ -37,21 +37,6 @@ conan install . --output-folder=build --build=missing
 
 ### 手动安装依赖
 
-#### yaml-cpp
-
-```bash
-# 下载源码
-wget https://github.com/jbeder/yaml-cpp/archive/yaml-cpp-0.8.0.tar.gz
-tar -xzf yaml-cpp-0.8.0.tar.gz
-cd yaml-cpp-yaml-cpp-0.8.0
-
-# 编译安装
-mkdir build && cd build
-cmake .. -DYAML_CPP_BUILD_TESTS=OFF
-make -j$(nproc)
-sudo make install
-```
-
 #### nlohmann_json
 
 ```bash
@@ -59,6 +44,17 @@ sudo make install
 wget https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
 sudo mkdir -p /usr/local/include/nlohmann
 sudo mv json.hpp /usr/local/include/nlohmann/
+```
+
+#### iov-vehicle-tbox-framework
+
+```bash
+# 编译安装框架
+cd ../iov-vehicle-tbox-framework
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+sudo make install
 ```
 
 ## 编译部署
@@ -108,9 +104,21 @@ docker run -v $(pwd):/workspace tbox-prov-builder
 
 ### 配置文件
 
-配置文件位于 `/etc/tbox/prov_config.yaml`，包含以下配置项：
+使用框架 `ConfigManager` 三层配置体系：
+
+| 层级 | 文件路径 | 是否必需 |
+|------|----------|----------|
+| Common | `/etc/tbox/common.yaml` | 是 |
+| Service | `/etc/tbox/conf.d/prov.yaml` | 否 |
+| Local | `./prov.yaml`（当前工作目录） | 否 |
+
+服务专属配置示例（`/etc/tbox/conf.d/prov.yaml`）：
 
 ```yaml
+# ECU配置
+ecu:
+  uid: "00000000000000000000000000000001"  # 仅测试环境
+
 # 存储配置
 storage:
   path: "/var/tbox/prov"
@@ -150,10 +158,7 @@ logging:
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| PROV_CONFIG_PATH | 配置文件路径 | /etc/tbox/prov_config.yaml |
 | PROV_STORAGE_PATH | 存储路径 | /var/tbox/prov |
-| PROV_LOG_LEVEL | 日志级别 | INFO |
-| PROV_LOG_FILE | 日志文件 | /var/log/tbox/prov.log |
 
 ## 启动服务
 
@@ -210,12 +215,6 @@ sudo systemctl status tbox-prov
 
 ```bash
 #!/bin/bash
-
-# 设置环境变量
-export PROV_CONFIG_PATH=/etc/tbox/prov_config.yaml
-export PROV_STORAGE_PATH=/var/tbox/prov
-export PROV_LOG_LEVEL=INFO
-export PROV_LOG_FILE=/var/log/tbox/prov.log
 
 # 创建必要目录
 mkdir -p /var/tbox/prov
@@ -329,7 +328,7 @@ iostat -x 1
 
 4. **更新配置（如有必要）**
    ```bash
-   sudo cp prov_config.yaml /etc/tbox/
+   sudo cp prov_config.yaml /etc/tbox/conf.d/prov.yaml
    ```
 
 5. **启动服务**

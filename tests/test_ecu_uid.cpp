@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "ecu_uid.h"
 #include "error_codes.h"
+#include "config.h"
 #include <fstream>
 #include <filesystem>
 #include <chrono>
@@ -15,6 +16,9 @@ protected:
         // 创建临时测试目录
         test_dir_ = "/tmp/ecu_uid_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
         std::filesystem::create_directories(test_dir_);
+        
+        // 加载框架配置（测试环境需要先加载配置才能读取UID）
+        CONFIG_MANAGER.load("prov");
     }
 
     void TearDown() override {
@@ -65,51 +69,50 @@ TEST_F(EcuUidTest, IsTestEnvironment) {
     EXPECT_TRUE(is_test);
 }
 
-TEST_F(EcuUidTest, ReadUidFromConfigFileSuccess) {
-    // 测试从配置文件读取UID
-    // read_uid_from_config_file() reads from ConfigPath::TEST_UID_CONFIG_LOCAL (./config/prov_test.conf)
-    std::filesystem::path config_dir = "./config";
-    std::filesystem::path config_file_path = config_dir / "prov_test.conf";
-    
-    // 创建配置目录
-    std::filesystem::create_directories(config_dir);
-    
-    // 写入测试配置文件
-    {
-        std::ofstream config_file(config_file_path);
-        config_file << "# Test config\n";
-        config_file << "uid=TEST_UID_12345\n";
-        config_file.close();
-    }
+TEST_F(EcuUidTest, ReadUidFromConfigSuccess) {
+    // 测试从框架配置读取UID
+    // 需要先加载配置
+    auto err = CONFIG_MANAGER.load("prov");
+    ASSERT_EQ(err, hwyz::config::ConfigError::kOk);
     
     // 调用被测函数
-    auto result = EcuUid::read_uid_from_config_file();
+    auto result = EcuUid::read_uid_from_config();
+    
+    // 验证结果（配置文件中应包含 ecu.uid）
+    ASSERT_TRUE(result.has_value());
+    EXPECT_FALSE(result.value().empty());
+    EXPECT_TRUE(EcuUid::validate(result.value()));
+}
+
+TEST_F(EcuUidTest, ReadUidFromConfigWithCustomValue) {
+    // 测试从框架配置读取自定义UID值
+    // 创建临时配置目录和文件
+    std::filesystem::path config_dir = test_dir_ + "/conf.d";
+    std::filesystem::create_directories(config_dir);
+    
+    std::filesystem::path config_file = config_dir / "prov.yaml";
+    {
+        std::ofstream file(config_file);
+        file << "ecu:\n";
+        file << "  uid: \"CUSTOM_UID_12345\"\n";
+        file.close();
+    }
+    
+    // 使用自定义配置根目录加载
+    auto err = CONFIG_MANAGER.load("prov", test_dir_);
+    ASSERT_EQ(err, hwyz::config::ConfigError::kOk);
+    
+    // 调用被测函数
+    auto result = EcuUid::read_uid_from_config();
     
     // 验证结果
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result.value(), "TEST_UID_12345");
-    
-    // 清理测试文件（不删除目录，因为可能包含其他文件）
-    std::filesystem::remove(config_file_path);
-}
-
-TEST_F(EcuUidTest, ReadUidFromConfigFileNotFound) {
-    // 测试配置文件不存在的情况
-    // read_uid_from_config_file() 依赖 /etc/tbox/prov_test.conf 和 ./config/prov_test.conf
-    // 清理可能存在的配置文件，确保测试环境干净
-    std::filesystem::path local_config = "./config/prov_test.conf";
-    if (std::filesystem::exists(local_config)) {
-        std::filesystem::remove(local_config);
-    }
-    // 注意：/etc/tbox/prov_test.conf 需要权限才能删除，这里假设测试环境没有该文件
-    // 如果测试机存在该文件，此测试可能需要调整
-    auto result = EcuUid::read_uid_from_config_file();
-    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.value(), "CUSTOM_UID_12345");
 }
 
 // PROV-1008 测试：SE读取失败/超时
 // 注意：当前架构无法实现此测试，因为：
-// 1. is_se_hardware_present() 是静态方法，硬编码返回 true
+// 1. is_se_hardware_present() 是静态方法，硬编码返回 false
 // 2. read_from_se() 是静态方法，硬编码返回 "SE987654321"
 // 3. 没有依赖注入机制来 mock 这些方法
 // 要实现此测试，需要重构 EcuUid 类引入虚拟方法或测试钩子
@@ -121,7 +124,7 @@ TEST_F(EcuUidTest, ReadUidFromConfigFileNotFound) {
 
 // PROV-1010 测试：生产环境无SE
 // 注意：当前架构无法实现此测试，因为：
-// 1. is_se_hardware_present() 是静态方法，硬编码返回 true
+// 1. is_se_hardware_present() 是静态方法，硬编码返回 false
 // 2. is_test_environment() 依赖编译开关 TEST_ENVIRONMENT（当前未定义）
 // 3. 没有依赖注入机制来 mock 这些方法
 // 要实现此测试，需要：

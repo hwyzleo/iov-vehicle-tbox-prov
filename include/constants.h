@@ -43,12 +43,9 @@ namespace NvmPartition {
     const std::string PROTECTED_STORAGE = "prov_protected";
 }
 
-// 配置文件路径
-namespace ConfigPath {
-    const std::string DEFAULT_CONFIG = "/etc/tbox/prov_config.yaml";
-    const std::string TEST_UID_CONFIG = "/etc/tbox/prov_test.conf";
-    const std::string TEST_UID_CONFIG_LOCAL = "./config/prov_test.conf";
-}
+// 配置文件路径（框架使用 /etc/tbox/ 作为默认配置根目录）
+// 服务专属配置: /etc/tbox/conf.d/prov.yaml
+// 本地覆盖配置: ./prov.yaml
 
 } // namespace prov
 } // namespace tbox

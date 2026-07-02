@@ -167,42 +167,37 @@ std::string ecu_uid = binding.ecu_uid;
 - RSMS 国标上报
 - TSP 上线注册
 
-## 测试环境配置文件
+## 测试环境配置
 
-在测试环境（无 SE 硬件）中，PROV 服务支持从配置文件读取 UID 作为兜底方案。
+在测试环境（无 SE 硬件）中，PROV 服务支持从 YAML 配置文件读取 UID 作为兜底方案。
 
 ### 配置文件位置
 
-按优先级查找：
-1. `/etc/tbox/prov_test.conf`（绝对路径，生产测试环境）
-2. `./config/prov_test.conf`（相对路径，开发环境推荐）
+使用框架 `ConfigManager` 三层配置体系：
+
+| 层级 | 文件路径 | 是否必需 |
+|------|----------|----------|
+| Common | `/etc/tbox/common.yaml` | 是 |
+| Service | `/etc/tbox/conf.d/prov.yaml` | 否 |
+| Local | `./prov.yaml`（当前工作目录） | 否 |
 
 ### 配置文件格式
 
-```ini
-# PROV 测试环境配置文件
-# 仅用于测试环境，生产环境不使用此文件
-#
-# 格式: key=value
-# 键: uid, 值: ECU UID 串（8-32位）
-
-uid=0123456789ABCDEF
+```yaml
+# ECU配置
+ecu:
+  # ECU UID（仅测试环境使用，生产环境从SE读取）
+  uid: "0123456789ABCDEF"
 ```
 
 ### 使用步骤
 
-1. 复制示例文件：
-   ```bash
-   cp config/prov_test.conf.example config/prov_test.conf
-   ```
+1. 在 `/etc/tbox/conf.d/prov.yaml` 或本地 `./prov.yaml` 中配置 `ecu.uid`
 
-2. 修改 `uid` 值为实际的 ECU UID
-
-3. 重新编译（需要定义 `TEST_ENVIRONMENT` 编译宏）
+2. 重新编译（需要定义 `TEST_ENVIRONMENT` 编译宏）
 
 ### 注意事项
 
-- 此配置文件**仅用于测试环境**
+- 此配置**仅用于测试环境**
 - 生产环境必须使用 SE 硬件读取 UID
 - 生产环境无 SE 时会返回 `PROV-1010` 错误（fail-closed）
-- 配置文件不做完整性/防篡改保护

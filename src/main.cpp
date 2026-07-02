@@ -1,4 +1,5 @@
 #include "prov_service.h"
+#include "config.h"
 #include <iostream>
 #include <signal.h>
 #include <atomic>
@@ -20,11 +21,20 @@ int main(int argc, char* argv[]) {
     
     std::cout << "TBOX PROV Service Starting..." << std::endl;
     
-    // 配置 PROV 服务
+    // 加载框架配置
+    auto err = CONFIG_MANAGER.load("prov");
+    if (err != hwyz::config::ConfigError::kOk) {
+        auto info = CONFIG_MANAGER.getLastError();
+        std::cerr << "Config load failed: " << info.message << std::endl;
+        return 1;
+    }
+    
+    // 从配置读取服务参数
+    auto cfg = CONFIG_SNAPSHOT;
     tbox::prov::ProvServiceConfig config;
-    config.storage_path = "/var/tbox/prov";
-    config.enable_write_protection = true;
-    config.max_retry_count = 3;
+    config.storage_path = cfg->getString("storage.path", "/var/tbox/prov");
+    config.enable_write_protection = cfg->getBool("storage.enable_write_protection", true);
+    config.max_retry_count = cfg->getInt("storage.max_retry_count", 3);
     
     // 创建并初始化 PROV 服务
     tbox::prov::ProvService service(config);

@@ -1,4 +1,5 @@
 #include "prov_service.h"
+#include "config.h"
 #include <iostream>
 #include <string>
 
@@ -27,11 +28,20 @@ int main(int argc, char* argv[]) {
 
     std::string command = argv[1];
 
-    // 配置 PROV 服务
+    // 加载框架配置
+    auto err = CONFIG_MANAGER.load("prov");
+    if (err != hwyz::config::ConfigError::kOk) {
+        auto info = CONFIG_MANAGER.getLastError();
+        std::cerr << "Config load failed: " << info.message << std::endl;
+        return 1;
+    }
+
+    // 从配置读取服务参数
+    auto cfg = CONFIG_SNAPSHOT;
     ProvServiceConfig config;
-    config.storage_path = "/tmp/tbox/prov_test";
-    config.enable_write_protection = true;
-    config.max_retry_count = 3;
+    config.storage_path = cfg->getString("storage.path", "/tmp/tbox/prov_test");
+    config.enable_write_protection = cfg->getBool("storage.enable_write_protection", true);
+    config.max_retry_count = cfg->getInt("storage.max_retry_count", 3);
 
     // 创建并初始化 PROV 服务
     ProvService service(config);
@@ -78,7 +88,7 @@ int main(int argc, char* argv[]) {
             if (uid_reader.is_se_hardware_present()) {
                 std::cout << "SE hardware" << std::endl;
             } else if (uid_reader.is_test_environment()) {
-                std::cout << "Config file (test environment)" << std::endl;
+                std::cout << "Config (test environment)" << std::endl;
             } else {
                 std::cout << "Unknown" << std::endl;
             }

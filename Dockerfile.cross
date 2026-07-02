@@ -2,10 +2,10 @@
 FROM multiarch/debian-debootstrap:arm64-buster
 
 # Install build dependencies
+# Note: yaml-cpp and spdlog are provided by iov-vehicle-tbox-framework
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
-    libyaml-cpp-dev \
     nlohmann-json3-dev \
     libgtest-dev \
     git \
@@ -26,7 +26,7 @@ RUN mkdir -p build && cd build && \
 # Create output directory
 RUN mkdir -p /output && \
     cp build/TboxProvService /output/ && \
-    cp config/prov_config.yaml /output/prov_config.yaml.example && \
+    cp config/prov_config.yaml /output/ && \
     ldd build/TboxProvService | grep "=> /" | awk '{print $3}' | sort -u | xargs -I {} cp {} /output/lib/ 2>/dev/null || true
 
 # Default command: copy output to mounted volume

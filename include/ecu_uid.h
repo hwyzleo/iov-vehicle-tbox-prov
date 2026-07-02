@@ -43,15 +43,12 @@ public:
     // 检查是否为测试环境
     static bool is_test_environment();
     
-    // 从配置文件读取UID（仅测试环境）
-    static std::optional<std::string> read_uid_from_config_file();
+    // 从配置读取UID（仅测试环境，使用框架ConfigManager）
+    static std::optional<std::string> read_uid_from_config();
 
 private:
     // 从SE读取UID的具体实现
     static std::string read_from_se();
-    
-    // 解析配置文件
-    static std::optional<std::string> parse_config_file(const std::string& file_path);
 };
 
 } // namespace prov
