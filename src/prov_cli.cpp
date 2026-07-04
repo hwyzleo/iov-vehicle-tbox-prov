@@ -1,4 +1,5 @@
 #include "prov_service.h"
+#include "framework_store.h"
 #include "config.h"
 #include <iostream>
 #include <string>
@@ -37,14 +38,19 @@ int main(int argc, char* argv[]) {
     }
 
     // 从配置读取服务参数
+
+    // 从配置读取服务参数
     auto cfg = CONFIG_SNAPSHOT;
+    std::string store_root = cfg->getString("common.store.root", "/tmp/tbox");
     ProvServiceConfig config;
-    config.storage_path = cfg->getString("storage.path", "/tmp/tbox/prov_test");
     config.enable_write_protection = cfg->getBool("storage.enable_write_protection", true);
     config.max_retry_count = cfg->getInt("storage.max_retry_count", 3);
 
+    // 创建 Store 实例
+    tbox::framework::Store store("prov", store_root);
+    
     // 创建并初始化 PROV 服务
-    ProvService service(config);
+    ProvService service(store, config);
     auto result = service.initialize();
 
     if (result != ErrorCode::SUCCESS) {

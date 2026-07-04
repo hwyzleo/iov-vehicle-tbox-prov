@@ -6,6 +6,7 @@
 #include "data_models.h"
 #include "error_codes.h"
 #include "protected_storage.h"
+#include "framework_store.h"
 #include "vin_validator.h"
 #include "ecu_uid.h"
 
@@ -13,15 +14,14 @@ namespace tbox {
 namespace prov {
 
 struct ProvServiceConfig {
-    std::string storage_path;
     bool enable_write_protection = true;
     uint32_t max_retry_count = 3;
 };
 
 class ProvService {
 public:
-    ProvService();
-    explicit ProvService(const ProvServiceConfig& config);
+    ProvService(tbox::framework::Store& store);
+    ProvService(tbox::framework::Store& store, const ProvServiceConfig& config);
     virtual ~ProvService() = default;
 
     // 初始化服务
@@ -52,6 +52,7 @@ public:
     virtual bool is_initialized() const;
 
 protected:
+    tbox::framework::Store& store_;
     ProvServiceConfig config_;
     bool initialized_ = false;
     

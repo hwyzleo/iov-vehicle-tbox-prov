@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "protected_storage_impl.h"
+#include "framework_store.h"
 #include <filesystem>
 #include <cstdio>
 
@@ -10,26 +11,29 @@ namespace testing {
 class ProtectedStorageTest : public ::testing::Test {
 protected:
     std::string test_dir_ = "/tmp/prov_test_storage";
+    std::unique_ptr<tbox::framework::Store> store_;
     
     void SetUp() override {
         // 清理测试目录
         std::filesystem::remove_all(test_dir_);
         std::filesystem::create_directories(test_dir_);
+        store_ = std::make_unique<tbox::framework::Store>("prov", test_dir_);
     }
     
     void TearDown() override {
+        store_.reset();
         // 清理测试目录
         std::filesystem::remove_all(test_dir_);
     }
 };
 
 TEST_F(ProtectedStorageTest, Initialize) {
-    ProtectedStorageImpl storage(test_dir_);
+    ProtectedStorageImpl storage(*store_);
     EXPECT_EQ(storage.initialize(), ErrorCode::SUCCESS);
 }
 
 TEST_F(ProtectedStorageTest, ReadWriteVehicleBinding) {
-    ProtectedStorageImpl storage(test_dir_);
+    ProtectedStorageImpl storage(*store_);
     ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
     
     // 创建测试数据
@@ -56,7 +60,7 @@ TEST_F(ProtectedStorageTest, ReadWriteVehicleBinding) {
 }
 
 TEST_F(ProtectedStorageTest, ReadWriteVehicleConfig) {
-    ProtectedStorageImpl storage(test_dir_);
+    ProtectedStorageImpl storage(*store_);
     ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
     
     // 创建测试数据
@@ -75,7 +79,7 @@ TEST_F(ProtectedStorageTest, ReadWriteVehicleConfig) {
 }
 
 TEST_F(ProtectedStorageTest, ReadWriteProductionInfo) {
-    ProtectedStorageImpl storage(test_dir_);
+    ProtectedStorageImpl storage(*store_);
     ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
     
     // 创建测试数据
@@ -96,7 +100,7 @@ TEST_F(ProtectedStorageTest, ReadWriteProductionInfo) {
 }
 
 TEST_F(ProtectedStorageTest, WriteProtection) {
-    ProtectedStorageImpl storage(test_dir_);
+    ProtectedStorageImpl storage(*store_);
     ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
     
     // 初始状态未锁定
@@ -120,7 +124,7 @@ TEST_F(ProtectedStorageTest, WriteProtection) {
 }
 
 TEST_F(ProtectedStorageTest, ClearAll) {
-    ProtectedStorageImpl storage(test_dir_);
+    ProtectedStorageImpl storage(*store_);
     ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
     
     // 写入数据
@@ -137,7 +141,7 @@ TEST_F(ProtectedStorageTest, ClearAll) {
 }
 
 TEST_F(ProtectedStorageTest, NonExistentData) {
-    ProtectedStorageImpl storage(test_dir_);
+    ProtectedStorageImpl storage(*store_);
     ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
     
     // 读取不存在的数据

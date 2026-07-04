@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "prov_service.h"
+#include "framework_store.h"
 #include <filesystem>
 #include <chrono>
 
@@ -11,19 +12,21 @@ protected:
         test_dir_ = "/tmp/prov_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
         std::filesystem::create_directories(test_dir_);
         
-        config_.storage_path = test_dir_;
+        store_ = std::make_unique<tbox::framework::Store>("prov", test_dir_);
         config_.enable_write_protection = true;
         config_.max_retry_count = 3;
         
-        service_ = std::make_unique<ProvService>(config_);
+        service_ = std::make_unique<ProvService>(*store_, config_);
     }
     
     void TearDown() override {
         service_.reset();
+        store_.reset();
         std::filesystem::remove_all(test_dir_);
     }
     
     std::string test_dir_;
+    std::unique_ptr<tbox::framework::Store> store_;
     ProvServiceConfig config_;
     std::unique_ptr<ProvService> service_;
 };

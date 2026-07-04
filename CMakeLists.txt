@@ -37,6 +37,7 @@ find_package(nlohmann_json REQUIRED)
 set(LIB_SOURCES
     src/prov_service.cpp
     src/protected_storage.cpp
+    src/framework_store.cpp
     src/ecu_uid.cpp
     src/vin_validator.cpp
     src/data_models.cpp

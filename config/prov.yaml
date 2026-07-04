@@ -1,6 +1,10 @@
 # TBOX PROV Service Configuration
 # 此文件可部署为 /etc/tbox/conf.d/prov.yaml（服务专属配置）
 
+common:
+  store:
+    root: "."
+
 # ECU配置
 ecu:
   # ECU UID（仅测试环境使用，生产环境从SE读取）
@@ -41,7 +45,7 @@ rid:
   rewrite_routine: 0xFF00
 
 # 日志配置
-logging:
+log:
   level: "INFO"
   file: "/var/log/tbox/prov.log"
   max_size: 10485760  # 10MB

@@ -8,21 +8,20 @@
 namespace tbox {
 namespace prov {
 
-ProtectedStorageImpl::ProtectedStorageImpl(const std::string& storage_path) 
-    : storage_path_(storage_path) {
+ProtectedStorageImpl::ProtectedStorageImpl(tbox::framework::Store& store) 
+    : store_(store) {
 }
 
 ErrorCode ProtectedStorageImpl::initialize() {
     try {
-        if (!create_directory(storage_path_)) {
+        if (!store_.initialize()) {
             return ErrorCode::STORAGE_ERROR;
         }
         
         // 检查写保护状态
-        std::string protection_path = get_protection_file_path();
-        if (file_exists(protection_path)) {
-            std::string data = read_from_file(protection_path);
-            write_protected_ = (data == "1");
+        auto protection_data = store_.load<std::string>("protection");
+        if (protection_data.has_value()) {
+            write_protected_ = (protection_data.value() == "1");
         }
         
         return ErrorCode::SUCCESS;
@@ -35,14 +34,12 @@ ErrorCode ProtectedStorageImpl::initialize() {
 std::optional<VehicleBinding> ProtectedStorageImpl::read_vehicle_binding() {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    std::string path = get_binding_file_path();
-    if (!file_exists(path)) {
-        return std::nullopt;
-    }
-    
     try {
-        std::string data = read_from_file(path);
-        return deserialize_binding(data);
+        auto data = store_.load<std::string>("binding");
+        if (!data.has_value()) {
+            return std::nullopt;
+        }
+        return deserialize_binding(data.value());
     } catch (const std::exception& e) {
         std::cerr << "Failed to read vehicle binding: " << e.what() << std::endl;
         return std::nullopt;
@@ -58,9 +55,7 @@ ErrorCode ProtectedStorageImpl::write_vehicle_binding(const VehicleBinding& bind
     
     try {
         std::string data = serialize_binding(binding);
-        std::string path = get_binding_file_path();
-        
-        if (!write_to_file(path, data)) {
+        if (!store_.save<std::string>("binding", data)) {
             return ErrorCode::STORAGE_ERROR;
         }
         
@@ -74,14 +69,12 @@ ErrorCode ProtectedStorageImpl::write_vehicle_binding(const VehicleBinding& bind
 std::optional<VehicleConfig> ProtectedStorageImpl::read_vehicle_config() {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    std::string path = get_config_file_path();
-    if (!file_exists(path)) {
-        return std::nullopt;
-    }
-    
     try {
-        std::string data = read_from_file(path);
-        return deserialize_config(data);
+        auto data = store_.load<std::string>("config");
+        if (!data.has_value()) {
+            return std::nullopt;
+        }
+        return deserialize_config(data.value());
     } catch (const std::exception& e) {
         std::cerr << "Failed to read vehicle config: " << e.what() << std::endl;
         return std::nullopt;
@@ -97,9 +90,7 @@ ErrorCode ProtectedStorageImpl::write_vehicle_config(const VehicleConfig& config
     
     try {
         std::string data = serialize_config(config);
-        std::string path = get_config_file_path();
-        
-        if (!write_to_file(path, data)) {
+        if (!store_.save<std::string>("config", data)) {
             return ErrorCode::STORAGE_ERROR;
         }
         
@@ -113,14 +104,12 @@ ErrorCode ProtectedStorageImpl::write_vehicle_config(const VehicleConfig& config
 std::optional<ProductionInfo> ProtectedStorageImpl::read_production_info() {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    std::string path = get_production_info_file_path();
-    if (!file_exists(path)) {
-        return std::nullopt;
-    }
-    
     try {
-        std::string data = read_from_file(path);
-        return deserialize_production_info(data);
+        auto data = store_.load<std::string>("production_info");
+        if (!data.has_value()) {
+            return std::nullopt;
+        }
+        return deserialize_production_info(data.value());
     } catch (const std::exception& e) {
         std::cerr << "Failed to read production info: " << e.what() << std::endl;
         return std::nullopt;
@@ -136,9 +125,7 @@ ErrorCode ProtectedStorageImpl::write_production_info(const ProductionInfo& info
     
     try {
         std::string data = serialize_production_info(info);
-        std::string path = get_production_info_file_path();
-        
-        if (!write_to_file(path, data)) {
+        if (!store_.save<std::string>("production_info", data)) {
             return ErrorCode::STORAGE_ERROR;
         }
         
@@ -153,10 +140,8 @@ ErrorCode ProtectedStorageImpl::set_write_protection(bool locked) {
     std::lock_guard<std::mutex> lock(mutex_);
     
     try {
-        std::string path = get_protection_file_path();
         std::string data = locked ? "1" : "0";
-        
-        if (!write_to_file(path, data)) {
+        if (!store_.save<std::string>("protection", data)) {
             return ErrorCode::STORAGE_ERROR;
         }
         
@@ -177,10 +162,11 @@ ErrorCode ProtectedStorageImpl::clear_all() {
     std::lock_guard<std::mutex> lock(mutex_);
     
     try {
-        std::filesystem::remove_all(storage_path_);
-        if (!create_directory(storage_path_)) {
-            return ErrorCode::STORAGE_ERROR;
-        }
+        // 删除所有存储的键
+        store_.remove("binding");
+        store_.remove("config");
+        store_.remove("production_info");
+        store_.remove("protection");
         
         write_protected_ = false;
         return ErrorCode::SUCCESS;
@@ -190,67 +176,9 @@ ErrorCode ProtectedStorageImpl::clear_all() {
     }
 }
 
-std::string ProtectedStorageImpl::get_binding_file_path() const {
-    return storage_path_ + "/binding.json";
-}
 
-std::string ProtectedStorageImpl::get_config_file_path() const {
-    return storage_path_ + "/config.json";
-}
 
-std::string ProtectedStorageImpl::get_production_info_file_path() const {
-    return storage_path_ + "/production_info.json";
-}
 
-std::string ProtectedStorageImpl::get_protection_file_path() const {
-    return storage_path_ + "/protection.txt";
-}
-
-bool ProtectedStorageImpl::write_to_file(const std::string& path, const std::string& data) {
-    try {
-        std::ofstream file(path);
-        if (!file.is_open()) {
-            return false;
-        }
-        file << data;
-        file.close();
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to write to file: " << e.what() << std::endl;
-        return false;
-    }
-}
-
-std::string ProtectedStorageImpl::read_from_file(const std::string& path) {
-    try {
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            return "";
-        }
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        return buffer.str();
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to read from file: " << e.what() << std::endl;
-        return "";
-    }
-}
-
-bool ProtectedStorageImpl::file_exists(const std::string& path) {
-    return std::filesystem::exists(path);
-}
-
-bool ProtectedStorageImpl::create_directory(const std::string& path) {
-    try {
-        if (!std::filesystem::exists(path)) {
-            return std::filesystem::create_directories(path);
-        }
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to create directory: " << e.what() << std::endl;
-        return false;
-    }
-}
 
 std::string ProtectedStorageImpl::serialize_binding(const VehicleBinding& binding) {
     nlohmann::json j;

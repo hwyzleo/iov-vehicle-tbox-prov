@@ -6,14 +6,14 @@
 namespace tbox {
 namespace prov {
 
-ProvService::ProvService() {
-    config_.storage_path = "/var/tbox/prov";
+ProvService::ProvService(tbox::framework::Store& store) 
+    : store_(store) {
     config_.enable_write_protection = true;
     config_.max_retry_count = 3;
 }
 
-ProvService::ProvService(const ProvServiceConfig& config) 
-    : config_(config) {
+ProvService::ProvService(tbox::framework::Store& store, const ProvServiceConfig& config) 
+    : store_(store), config_(config) {
 }
 
 ErrorCode ProvService::initialize() {
@@ -207,7 +207,7 @@ bool ProvService::is_initialized() const {
 }
 
 ErrorCode ProvService::initialize_storage() {
-    storage_ = std::make_unique<ProtectedStorageImpl>(config_.storage_path);
+    storage_ = std::make_unique<ProtectedStorageImpl>(store_);
     return storage_->initialize();
 }
 

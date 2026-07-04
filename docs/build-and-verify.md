@@ -81,14 +81,14 @@ docker run -v $(pwd)/output:/dest tbox-prov-builder
 # 3. 查看产物
 ls -la output/
 # TboxProvService        # ARM64 Linux 可执行文件
-# prov_config.yaml       # 配置文件示例
+# prov.yaml       # 配置文件示例
 ```
 
 ### 产物部署
 ```bash
 # 将产物复制到 TBOX 设备
 scp output/TboxProvService user@tbox-device:/usr/bin/
-scp config/prov_config.yaml user@tbox-device:/etc/tbox/conf.d/prov.yaml
+scp config/prov.yaml user@tbox-device:/etc/tbox/conf.d/prov.yaml
 ```
 
 ## 推荐工作流

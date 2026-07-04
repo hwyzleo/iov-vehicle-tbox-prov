@@ -328,7 +328,7 @@ iostat -x 1
 
 4. **更新配置（如有必要）**
    ```bash
-   sudo cp prov_config.yaml /etc/tbox/conf.d/prov.yaml
+   sudo cp prov.yaml /etc/tbox/conf.d/prov.yaml
    ```
 
 5. **启动服务**
