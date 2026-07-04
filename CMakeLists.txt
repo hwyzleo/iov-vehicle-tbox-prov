@@ -33,8 +33,6 @@ include_directories(${GTEST_INCLUDE_DIRS})
 # nlohmann_json
 find_package(nlohmann_json REQUIRED)
 
-find_package(yaml-cpp REQUIRED)
-
 # Library source files (without main.cpp)
 set(LIB_SOURCES
     src/prov_service.cpp
@@ -44,16 +42,30 @@ set(LIB_SOURCES
     src/vin_validator.cpp
     src/data_models.cpp
     src/error_codes.cpp
+    src/ipc_protocol.cpp
+    src/ipc_server.cpp
 )
 
 # Static library for other modules to link against
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
 target_include_directories(TboxProvLib PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(TboxProvLib PUBLIC ${HWYZ_LIBRARIES} nlohmann_json::nlohmann_json yaml-cpp::yaml-cpp)
+target_link_libraries(TboxProvLib PUBLIC ${HWYZ_LIBRARIES} nlohmann_json::nlohmann_json)
 target_include_directories(TboxProvLib PUBLIC ${HWYZ_INCLUDE_DIR})
 target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 
-set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+# Client stub library for IPC communication
+set(CLIENT_SOURCES
+    src/prov_client.cpp
+    src/ipc_protocol.cpp
+)
+add_library(ProvClient STATIC ${CLIENT_SOURCES})
+target_include_directories(ProvClient PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(ProvClient PUBLIC nlohmann_json::nlohmann_json)
+target_compile_definitions(ProvClient PRIVATE TEST_ENVIRONMENT)
+
+set(LIB_INSTALL_DIR "../lib" CACHE PATH "Relative path to library directory")
+get_filename_component(LIB_INSTALL_DIR_ABS "${LIB_INSTALL_DIR}" ABSOLUTE)
+set(CMAKE_INSTALL_RPATH "${LIB_INSTALL_DIR_ABS}")
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 # Main executable
@@ -68,8 +80,9 @@ add_executable(TboxProvTests
     tests/test_vin_validator.cpp
     tests/test_data_models.cpp
     tests/test_ecu_uid.cpp
+    tests/test_ipc.cpp
 )
-target_link_libraries(TboxProvTests PRIVATE TboxProvLib GTest::GTest GTest::Main)
+target_link_libraries(TboxProvTests PRIVATE TboxProvLib ProvClient GTest::GTest GTest::Main)
 target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)
 add_test(NAME TboxProvTests COMMAND TboxProvTests)
 

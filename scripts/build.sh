@@ -63,7 +63,7 @@ build_project() {
     cd build
     
     # 配置CMake
-    cmake .. -DCMAKE_BUILD_TYPE=Release
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DLIB_INSTALL_DIR=../../iov-vehicle-tbox-framework/build/
     
     # 构建
     cmake --build . --config Release

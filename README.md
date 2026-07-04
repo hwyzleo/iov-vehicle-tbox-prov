@@ -10,6 +10,71 @@ TBOX 产线个性化（PROV）服务，负责在总装阶段通过 UDS 协议完
 - **生产信息写入**：写入生产日期、批次号等信息
 - **写保护机制**：默认锁定，防止未授权写入
 - **回读校验**：写入后回读验证数据一致性
+- **IPC 接口**：支持外部服务通过 Unix Socket IPC 调用，提供 `prov_client` 客户端桩库
+
+## IPC 接口
+
+PROV 服务作为独立 daemon 运行，通过 Unix Socket 提供 IPC 接口。其他服务（如 SEC、RSMS、TSP、DIAG）通过链接 `prov_client` 客户端桩库调用 PROV 服务，而非直接链接 `TboxProvLib`。
+
+### 接口方法
+
+| 方法 | 说明 | 参数 | 返回值 |
+|------|------|------|--------|
+| `initialize()` | 初始化服务 | 无 | `ErrorCode` |
+| `read_vin()` | 读取 VIN | 无 | `string` |
+| `read_binding()` | 读取绑定信息 | 无 | `VehicleBinding` |
+| `get_provision_state()` | 获取个性化状态 | 无 | `ProvisionState` |
+| `write_vin(vin)` | 写入 VIN（供 DIAG 调用） | `string` | `ErrorCode` |
+| `write_vehicle_config(data)` | 写入车辆配置 | `vector<uint8_t>` | `ErrorCode` |
+| `write_production_info(info)` | 写入生产信息 | `ProductionInfo` | `ErrorCode` |
+| `authorize_rewrite(new_vin)` | 授权重写 | `string` | `ErrorCode` |
+
+### 使用示例
+
+```cpp
+#include "prov_client.h"
+
+// 创建客户端实例
+tbox::prov::ProvClient client("/tmp/tbox-prov.sock");
+
+// 连接到 PROV 服务
+if (!client.connect()) {
+    // 处理连接失败
+    return;
+}
+
+// 读取 VIN
+std::string vin = client.read_vin();
+
+// 获取绑定信息
+auto binding = client.read_binding();
+
+// 写入 VIN（供 DIAG 调用）
+auto result = client.write_vin("1HGBH41JXMN109186");
+
+// 断开连接
+client.disconnect();
+```
+
+### 编译依赖
+
+在 CMakeLists.txt 中添加对 `ProvClient` 库的依赖：
+
+```cmake
+target_link_libraries(YourTarget PRIVATE ProvClient)
+```
+
+### 配置
+
+IPC Socket 路径可在配置文件中指定：
+
+```yaml
+# /etc/tbox/conf.d/prov.yaml
+ipc:
+  socket_path: "/tmp/tbox-prov.sock"
+```
+
+默认路径为 `/tmp/tbox-prov.sock`。
 
 ## 项目结构
 

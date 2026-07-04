@@ -1,5 +1,6 @@
 #include "prov_service.h"
 #include "protected_storage_impl.h"
+#include "ipc_server.h"
 #include <iostream>
 #include <chrono>
 
@@ -14,6 +15,10 @@ ProvService::ProvService(tbox::framework::Store& store)
 
 ProvService::ProvService(tbox::framework::Store& store, const ProvServiceConfig& config) 
     : store_(store), config_(config) {
+}
+
+ProvService::~ProvService() {
+    stop_ipc_server();
 }
 
 ErrorCode ProvService::initialize() {
@@ -31,6 +36,35 @@ ErrorCode ProvService::initialize() {
     
     initialized_ = true;
     return ErrorCode::SUCCESS;
+}
+
+bool ProvService::start_ipc_server() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (!initialized_) {
+        return false;
+    }
+    
+    if (ipc_server_) {
+        return true;  // 已经启动
+    }
+    
+    ipc_server_ = std::make_unique<ipc::IpcServer>(config_.ipc_socket_path);
+    if (!ipc_server_->start(this)) {
+        ipc_server_.reset();
+        return false;
+    }
+    
+    return true;
+}
+
+void ProvService::stop_ipc_server() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (ipc_server_) {
+        ipc_server_->stop();
+        ipc_server_.reset();
+    }
 }
 
 ErrorCode ProvService::write_vin(const std::string& vin) {

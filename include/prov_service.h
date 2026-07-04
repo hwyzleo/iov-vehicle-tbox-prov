@@ -3,6 +3,8 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <thread>
+#include <atomic>
 #include "data_models.h"
 #include "error_codes.h"
 #include "protected_storage.h"
@@ -13,19 +15,31 @@
 namespace tbox {
 namespace prov {
 
+// 前向声明
+namespace ipc {
+class IpcServer;
+}
+
 struct ProvServiceConfig {
     bool enable_write_protection = true;
     uint32_t max_retry_count = 3;
+    std::string ipc_socket_path = "/tmp/tbox-prov.sock";
 };
 
 class ProvService {
 public:
     ProvService(tbox::framework::Store& store);
     ProvService(tbox::framework::Store& store, const ProvServiceConfig& config);
-    virtual ~ProvService() = default;
+    virtual ~ProvService();
 
     // 初始化服务
     virtual ErrorCode initialize();
+    
+    // 启动 IPC 服务器
+    virtual bool start_ipc_server();
+    
+    // 停止 IPC 服务器
+    virtual void stop_ipc_server();
     
     // 业务接口：写入 VIN
     virtual ErrorCode write_vin(const std::string& vin);
@@ -57,6 +71,7 @@ protected:
     bool initialized_ = false;
     
     std::unique_ptr<ProtectedStorage> storage_;
+    std::unique_ptr<ipc::IpcServer> ipc_server_;
     
     mutable std::mutex mutex_;
     

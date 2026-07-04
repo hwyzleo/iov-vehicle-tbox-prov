@@ -52,6 +52,14 @@ int main(int argc, char* argv[]) {
     
     std::cout << "PROV service initialized successfully" << std::endl;
     
+    // 启动 IPC 服务器
+    if (!service.start_ipc_server()) {
+        std::cerr << "Failed to start IPC server" << std::endl;
+        return 1;
+    }
+    
+    std::cout << "PROV service is ready to accept IPC connections" << std::endl;
+    
     // 主循环（UDS协议处理由DIAG服务负责）
     while (!shutdown_requested) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
