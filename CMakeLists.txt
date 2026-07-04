@@ -53,6 +53,9 @@ target_link_libraries(TboxProvLib PUBLIC ${HWYZ_LIBRARIES} nlohmann_json::nlohma
 target_include_directories(TboxProvLib PUBLIC ${HWYZ_INCLUDE_DIR})
 target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+
 # Main executable
 add_executable(TboxProvService src/main.cpp)
 target_link_libraries(TboxProvService PRIVATE TboxProvLib)
