@@ -33,6 +33,8 @@ include_directories(${GTEST_INCLUDE_DIRS})
 # nlohmann_json
 find_package(nlohmann_json REQUIRED)
 
+find_package(yaml-cpp REQUIRED)
+
 # Library source files (without main.cpp)
 set(LIB_SOURCES
     src/prov_service.cpp
@@ -47,7 +49,7 @@ set(LIB_SOURCES
 # Static library for other modules to link against
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
 target_include_directories(TboxProvLib PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(TboxProvLib PUBLIC ${HWYZ_LIBRARIES} nlohmann_json::nlohmann_json)
+target_link_libraries(TboxProvLib PUBLIC ${HWYZ_LIBRARIES} nlohmann_json::nlohmann_json yaml-cpp::yaml-cpp)
 target_include_directories(TboxProvLib PUBLIC ${HWYZ_INCLUDE_DIR})
 target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 

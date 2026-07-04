@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <chrono>
 #include <optional>
+#include <vector>
 
 namespace tbox {
 namespace prov {
