@@ -29,7 +29,13 @@ bool IpcSerializer::deserialize_request(const std::vector<uint8_t>& data, Method
         return false;
     }
     
-    method = static_cast<MethodId>(header.method_id);
+    uint32_t method_id = header.method_id;
+    if (method_id < static_cast<uint32_t>(MethodId::INITIALIZE) || 
+        method_id > static_cast<uint32_t>(MethodId::AUTHORIZE_REWRITE)) {
+        return false;
+    }
+    
+    method = static_cast<MethodId>(method_id);
     params_json = std::string(reinterpret_cast<const char*>(data.data() + sizeof(RequestHeader)), header.params_length);
     
     return true;

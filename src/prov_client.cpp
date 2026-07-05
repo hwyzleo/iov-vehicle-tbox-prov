@@ -6,6 +6,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <errno.h>
+#include <nlohmann/json.hpp>
 
 namespace tbox {
 namespace prov {
@@ -94,14 +95,21 @@ VehicleBinding ProvClient::read_binding() {
     int32_t status_code;
     std::string response_json;
     VehicleBinding binding;
-    
+
     if (!send_request(static_cast<uint32_t>(ipc::MethodId::READ_BINDING), "{}", status_code, response_json)) {
         return binding;
     }
-    
-    // 解析响应 JSON
-    // 简单实现：实际应使用 JSON 解析库
-    // 这里只是示例
+
+    try {
+        auto j = nlohmann::json::parse(response_json);
+        binding.vin = j.value("vin", "");
+        binding.ecu_uid = j.value("ecu_uid", "");
+        binding.state = static_cast<ProvisionState>(j.value("state", 0));
+        binding.locked = j.value("locked", false);
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to parse binding response: " << e.what() << std::endl;
+    }
+
     return binding;
 }
 
@@ -180,8 +188,11 @@ ErrorCode ProvClient::authorize_rewrite(const std::string& new_vin) {
 
 bool ProvClient::send_request(uint32_t method_id, const std::string& params_json, 
                              int32_t& status_code, std::string& response_json) {
+    // 自动重连
     if (!connected_) {
-        return false;
+        if (!connect()) {
+            return false;
+        }
     }
     
     // 序列化请求
@@ -194,7 +205,13 @@ bool ProvClient::send_request(uint32_t method_id, const std::string& params_json
         if (bytes_sent <= 0) {
             std::cerr << "Failed to send request: " << strerror(errno) << std::endl;
             disconnect();
-            return false;
+            // 重连一次
+            if (!connect()) {
+                return false;
+            }
+            // 重新发送
+            total_sent = 0;
+            continue;
         }
         total_sent += bytes_sent;
     }

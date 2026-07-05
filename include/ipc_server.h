@@ -36,6 +36,7 @@ public:
 private:
     std::string socket_path_;
     int server_fd_;
+    int shutdown_pipe_[2];
     std::atomic<bool> running_;
     std::thread accept_thread_;
     ProvService* service_;

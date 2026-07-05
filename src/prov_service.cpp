@@ -87,12 +87,16 @@ ErrorCode ProvService::write_vin(const std::string& vin) {
 std::string ProvService::read_vin() const {
     std::lock_guard<std::mutex> lock(mutex_);
     
+    std::cout << "[read_vin] called, initialized_=" << initialized_ << std::endl;
+    
     if (!initialized_) {
         return "";
     }
     
     auto binding = storage_->read_vehicle_binding();
+    std::cout << "[read_vin] binding.has_value()=" << binding.has_value() << std::endl;
     if (binding.has_value()) {
+        std::cout << "[read_vin] returning vin: \"" << binding->vin << "\"" << std::endl;
         return binding->vin;
     }
     

@@ -11,6 +11,7 @@ std::atomic<bool> shutdown_requested(false);
 
 void signal_handler(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {
+        std::cerr << "\n[signal] received signal " << signal << ", requesting shutdown" << std::endl;
         shutdown_requested = true;
     }
 }
@@ -19,6 +20,7 @@ int main(int argc, char* argv[]) {
     // 设置信号处理
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+    signal(SIGPIPE, SIG_IGN);
     
     std::cout << "TBOX PROV Service Starting..." << std::endl;
     

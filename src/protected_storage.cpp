@@ -34,14 +34,19 @@ ErrorCode ProtectedStorageImpl::initialize() {
 std::optional<VehicleBinding> ProtectedStorageImpl::read_vehicle_binding() {
     std::lock_guard<std::mutex> lock(mutex_);
     
+    std::cout << "[storage] read_vehicle_binding called" << std::endl;
     try {
         auto data = store_.load<std::string>("binding");
+        std::cout << "[storage] load result: " << (data.has_value() ? "has_value" : "nullopt") << std::endl;
         if (!data.has_value()) {
             return std::nullopt;
         }
-        return deserialize_binding(data.value());
+        std::cout << "[storage] raw data: \"" << data.value() << "\"" << std::endl;
+        auto result = deserialize_binding(data.value());
+        std::cout << "[storage] deserialize ok, vin=\"" << result.vin << "\"" << std::endl;
+        return result;
     } catch (const std::exception& e) {
-        std::cerr << "Failed to read vehicle binding: " << e.what() << std::endl;
+        std::cerr << "[storage] Failed to read vehicle binding: " << e.what() << std::endl;
         return std::nullopt;
     }
 }

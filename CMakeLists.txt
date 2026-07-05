@@ -57,6 +57,7 @@ target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 set(CLIENT_SOURCES
     src/prov_client.cpp
     src/ipc_protocol.cpp
+    src/error_codes.cpp
 )
 add_library(ProvClient STATIC ${CLIENT_SOURCES})
 target_include_directories(ProvClient PUBLIC ${PROJECT_SOURCE_DIR}/include)
