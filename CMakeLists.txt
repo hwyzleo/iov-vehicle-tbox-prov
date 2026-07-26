@@ -45,6 +45,7 @@ set(LIB_SOURCES
     src/ipc_protocol.cpp
     src/ipc_server.cpp
     src/prov_log_adapter.cpp
+    src/prov_context.cpp
 )
 
 # Static library for other modules to link against
@@ -84,6 +85,7 @@ add_executable(TboxProvTests
     tests/test_ecu_uid.cpp
     tests/test_ipc.cpp
     tests/test_log_adapter.cpp
+    tests/test_context.cpp
 )
 target_link_libraries(TboxProvTests PRIVATE TboxProvLib ProvClient GTest::GTest GTest::Main)
 target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)
