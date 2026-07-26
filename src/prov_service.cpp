@@ -1,11 +1,59 @@
 #include "prov_service.h"
+#include "prov_log_adapter.h"
+#include "prov_context.h"
 #include "protected_storage_impl.h"
 #include "ipc_server.h"
+#include "log.h"
 #include <iostream>
 #include <chrono>
+#include <sstream>
+#include <iomanip>
 
 namespace tbox {
 namespace prov {
+
+namespace {
+// 脱敏辅助函数
+std::string hash_identifier(const std::string& type, const std::string& value) {
+    // 使用简单的哈希实现（实际项目中应使用 SHA-256）
+    // 这里使用 framework 的 Identifier 敏感度标记
+    std::hash<std::string> hasher;
+    auto h = hasher(value);
+    std::ostringstream oss;
+    oss << type << "-" << std::hex << std::setfill('0') << std::setw(16) << h;
+    return oss.str();
+}
+
+std::string hash_vin(const std::string& vin) {
+    return hash_identifier("vin", vin);
+}
+
+std::string hash_ecu_uid(const std::string& ecu_uid) {
+    return hash_identifier("uid", ecu_uid);
+}
+
+std::string hash_config(const std::vector<uint8_t>& config) {
+    return hash_identifier("cfg", std::string(config.begin(), config.end()));
+}
+
+std::string hash_batch(const std::string& batch) {
+    return hash_identifier("batch", batch);
+}
+
+std::string hash_station(const std::string& station) {
+    return hash_identifier("station", station);
+}
+
+std::string provision_state_to_string(ProvisionState state) {
+    switch (state) {
+        case ProvisionState::NONE: return "NONE";
+        case ProvisionState::VIN_WRITTEN: return "VIN_WRITTEN";
+        case ProvisionState::BOUND: return "BOUND";
+        case ProvisionState::FAILED: return "FAILED";
+        default: return "UNKNOWN";
+    }
+}
+} // anonymous namespace
 
 ProvService::ProvService(tbox::framework::Store& store) 
     : store_(store) {
@@ -87,16 +135,12 @@ ErrorCode ProvService::write_vin(const std::string& vin) {
 std::string ProvService::read_vin() const {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    std::cout << "[read_vin] called, initialized_=" << initialized_ << std::endl;
-    
     if (!initialized_) {
         return "";
     }
     
     auto binding = storage_->read_vehicle_binding();
-    std::cout << "[read_vin] binding.has_value()=" << binding.has_value() << std::endl;
     if (binding.has_value()) {
-        std::cout << "[read_vin] returning vin: \"" << binding->vin << "\"" << std::endl;
         return binding->vin;
     }
     
@@ -135,6 +179,7 @@ ProvisionState ProvService::get_provision_state() const {
 }
 
 ErrorCode ProvService::write_vehicle_config(const std::vector<uint8_t>& config_data) {
+    auto start = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (!initialized_) {
@@ -146,6 +191,8 @@ ErrorCode ProvService::write_vehicle_config(const std::vector<uint8_t>& config_d
         return ErrorCode::SECURITY_ACCESS_NOT_GRANTED;
     }
     
+    auto config_hash = hash_config(config_data);
+    
     // 创建车辆配置
     VehicleConfig config;
     config.variant_coding = config_data;
@@ -155,16 +202,46 @@ ErrorCode ProvService::write_vehicle_config(const std::vector<uint8_t>& config_d
     // 写入存储
     ErrorCode result = storage_->write_vehicle_config(config);
     if (result != ErrorCode::SUCCESS) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::vehicle_config().error("prov.vehicle_config.write_failed",
+            "Vehicle config write failed",
+            {tbox::fw::log::Field("config_hash", tbox::fw::log::FieldValue::makeString(config_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("write_storage")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return ErrorCode::CONFIG_WRITE_FAILED;
     }
     
     // 回读校验
     auto stored_config = storage_->read_vehicle_config();
     if (!stored_config.has_value()) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::vehicle_config().error("prov.vehicle_config.write_failed",
+            "Vehicle config readback failed",
+            {tbox::fw::log::Field("config_hash", tbox::fw::log::FieldValue::makeString(config_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("readback_empty")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return ErrorCode::CONFIG_WRITE_FAILED;
     }
     
     if (stored_config->variant_coding != config_data) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::vehicle_config().error("prov.vehicle_config.write_failed",
+            "Vehicle config readback mismatch",
+            {tbox::fw::log::Field("config_hash", tbox::fw::log::FieldValue::makeString(config_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("readback_mismatch")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return ErrorCode::READBACK_VERIFICATION_FAILED;
     }
     
@@ -176,6 +253,7 @@ ErrorCode ProvService::write_vehicle_config(const std::vector<uint8_t>& config_d
 }
 
 ErrorCode ProvService::write_production_info(const ProductionInfo& info) {
+    auto start = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (!initialized_) {
@@ -187,6 +265,9 @@ ErrorCode ProvService::write_production_info(const ProductionInfo& info) {
         return ErrorCode::SECURITY_ACCESS_NOT_GRANTED;
     }
     
+    auto batch_hash = hash_batch(info.batch_num);
+    auto station_hash = hash_station(info.station_id);
+    
     // 设置写入时间
     ProductionInfo new_info = info;
     new_info.written_at = std::chrono::system_clock::now();
@@ -194,18 +275,51 @@ ErrorCode ProvService::write_production_info(const ProductionInfo& info) {
     // 写入存储
     ErrorCode result = storage_->write_production_info(new_info);
     if (result != ErrorCode::SUCCESS) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::production().error("prov.production_info.write_failed",
+            "Production info write failed",
+            {tbox::fw::log::Field("batch_hash", tbox::fw::log::FieldValue::makeString(batch_hash)),
+             tbox::fw::log::Field("station_hash", tbox::fw::log::FieldValue::makeString(station_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("write_storage")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return ErrorCode::PRODUCTION_INFO_WRITE_FAILED;
     }
     
     // 回读校验
     auto stored_info = storage_->read_production_info();
     if (!stored_info.has_value()) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::production().error("prov.production_info.write_failed",
+            "Production info readback failed",
+            {tbox::fw::log::Field("batch_hash", tbox::fw::log::FieldValue::makeString(batch_hash)),
+             tbox::fw::log::Field("station_hash", tbox::fw::log::FieldValue::makeString(station_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("readback_empty")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return ErrorCode::PRODUCTION_INFO_WRITE_FAILED;
     }
     
     if (stored_info->production_date != new_info.production_date ||
         stored_info->batch_num != new_info.batch_num ||
         stored_info->station_id != new_info.station_id) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::production().error("prov.production_info.write_failed",
+            "Production info readback mismatch",
+            {tbox::fw::log::Field("batch_hash", tbox::fw::log::FieldValue::makeString(batch_hash)),
+             tbox::fw::log::Field("station_hash", tbox::fw::log::FieldValue::makeString(station_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("readback_mismatch")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return ErrorCode::READBACK_VERIFICATION_FAILED;
     }
     
@@ -228,9 +342,18 @@ ErrorCode ProvService::authorize_rewrite(const std::string& new_vin) {
     // 检查当前绑定状态
     auto binding = storage_->read_vehicle_binding();
     if (binding.has_value() && binding->locked) {
-        // 已锁定，需要授权重写
+        auto new_vin_hash = hash_vin(new_vin);
+        auto current_vin_hash = hash_vin(binding->vin);
+        
         if (new_vin != binding->vin) {
-            // VIN冲突，需要授权
+            ProvLogAdapter::rewrite().warn("prov.binding.rewrite_denied",
+                "Unauthorized rewrite attempt",
+                {tbox::fw::log::Field("vin_hash", tbox::fw::log::FieldValue::makeString(new_vin_hash)),
+                 tbox::fw::log::Field("current_vin_hash", tbox::fw::log::FieldValue::makeString(current_vin_hash)),
+                 tbox::fw::log::Field("reason", tbox::fw::log::FieldValue::makeString("vin_conflict")),
+                 tbox::fw::log::Field("rewrite_count", tbox::fw::log::FieldValue::makeInt(binding->rewrite_count))}
+            );
+            
             return ErrorCode::VIN_CONFLICT_UNAUTHORIZED;
         }
     }
@@ -250,24 +373,57 @@ ErrorCode ProvService::initialize_storage() {
 }
 
 ErrorCode ProvService::execute_vin_binding_flow(const std::string& vin) {
+    auto start = std::chrono::steady_clock::now();
+    auto vin_hash = hash_vin(vin);
+    
     // 读取ECU UID
     auto uid_result = EcuUid::read_uid_detailed();
     if (!uid_result.success) {
-        // 根据错误码判断错误类型
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::vin().error("prov.uid.read_failed",
+            "Failed to read ECU UID",
+            {tbox::fw::log::Field("error_message", tbox::fw::log::FieldValue::makeString(uid_result.error_message)),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return uid_result.error_code;
     }
     
     std::string ecu_uid = uid_result.uid;
+    auto ecu_uid_hash = hash_ecu_uid(ecu_uid);
     
     // 建立绑定
     ErrorCode result = establish_binding(vin, ecu_uid);
     if (result != ErrorCode::SUCCESS) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::vin().error("prov.vin.write.failed",
+            "VIN write failed",
+            {tbox::fw::log::Field("vin_hash", tbox::fw::log::FieldValue::makeString(vin_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("establish_binding")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return result;
     }
     
     // 回读校验
     result = verify_write(vin);
     if (result != ErrorCode::SUCCESS) {
+        auto end = std::chrono::steady_clock::now();
+        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        
+        ProvLogAdapter::binding().error("prov.binding.readback_failed",
+            "Binding readback verification failed",
+            {tbox::fw::log::Field("vin_hash", tbox::fw::log::FieldValue::makeString(vin_hash)),
+             tbox::fw::log::Field("ecu_uid_hash", tbox::fw::log::FieldValue::makeString(ecu_uid_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("verify_write")),
+             tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+        );
+        
         return result;
     }
     
@@ -279,11 +435,28 @@ ErrorCode ProvService::execute_vin_binding_flow(const std::string& vin) {
         }
     }
     
+    auto end = std::chrono::steady_clock::now();
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    
+    ProvLogAdapter::vin().info("prov.vin.write.succeeded",
+        "VIN written successfully",
+        {tbox::fw::log::Field("vin_hash", tbox::fw::log::FieldValue::makeString(vin_hash)),
+         tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(duration_ms))}
+    );
+    
     return ErrorCode::SUCCESS;
 }
 
 ErrorCode ProvService::validate_vin_format(const std::string& vin) {
     if (!VinValidator::validate(vin)) {
+        auto vin_hash = hash_vin(vin);
+        
+        ProvLogAdapter::vin().warn("prov.vin.validation_failed",
+            "VIN format validation failed",
+            {tbox::fw::log::Field("vin_hash", tbox::fw::log::FieldValue::makeString(vin_hash)),
+             tbox::fw::log::Field("validation_reason", tbox::fw::log::FieldValue::makeString("invalid_format"))}
+        );
+        
         return ErrorCode::INVALID_VIN_FORMAT;
     }
     return ErrorCode::SUCCESS;
@@ -294,6 +467,9 @@ std::string ProvService::read_ecu_uid() {
 }
 
 ErrorCode ProvService::establish_binding(const std::string& vin, const std::string& ecu_uid) {
+    auto vin_hash = hash_vin(vin);
+    auto ecu_uid_hash = hash_ecu_uid(ecu_uid);
+    
     // 检查是否已有绑定
     auto existing_binding = storage_->read_vehicle_binding();
     
@@ -325,6 +501,16 @@ ErrorCode ProvService::establish_binding(const std::string& vin, const std::stri
         return ErrorCode::VIN_WRITE_FAILED;
     }
     
+    auto binding_state = provision_state_to_string(binding.state);
+    
+    ProvLogAdapter::binding().info("prov.binding.created",
+        "VIN-ECU binding established",
+        {tbox::fw::log::Field("vin_hash", tbox::fw::log::FieldValue::makeString(vin_hash)),
+         tbox::fw::log::Field("ecu_uid_hash", tbox::fw::log::FieldValue::makeString(ecu_uid_hash)),
+         tbox::fw::log::Field("binding_state", tbox::fw::log::FieldValue::makeString(binding_state)),
+         tbox::fw::log::Field("rewrite_count", tbox::fw::log::FieldValue::makeInt(binding.rewrite_count))}
+    );
+    
     return ErrorCode::SUCCESS;
 }
 
@@ -335,6 +521,16 @@ ErrorCode ProvService::verify_write(const std::string& expected_vin) {
     }
     
     if (binding->vin != expected_vin) {
+        auto vin_hash = hash_vin(expected_vin);
+        auto ecu_uid_hash = hash_ecu_uid(binding->ecu_uid);
+        
+        ProvLogAdapter::binding().error("prov.binding.readback_failed",
+            "Binding readback verification failed",
+            {tbox::fw::log::Field("vin_hash", tbox::fw::log::FieldValue::makeString(vin_hash)),
+             tbox::fw::log::Field("ecu_uid_hash", tbox::fw::log::FieldValue::makeString(ecu_uid_hash)),
+             tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString("vin_mismatch"))}
+        );
+        
         return ErrorCode::READBACK_VERIFICATION_FAILED;
     }
     
@@ -350,8 +546,6 @@ bool ProvService::is_write_protected() const {
 }
 
 void ProvService::record_error(ErrorCode error, const std::string& context) {
-    std::cerr << "PROV Error [" << error_code_to_string(error) << "]: " << context << std::endl;
-    
     // 更新绑定信息中的错误记录
     auto binding = storage_->read_vehicle_binding();
     if (binding.has_value()) {
