@@ -49,7 +49,7 @@ make -j$(nproc)
 ctest --output-on-failure
 
 # 4. 运行主程序
-./TboxProvService
+./tbox_prov
 ```
 
 ### 一键脚本
@@ -80,14 +80,14 @@ docker run -v $(pwd)/output:/dest tbox-prov-builder
 
 # 3. 查看产物
 ls -la output/
-# TboxProvService        # ARM64 Linux 可执行文件
+# tbox_prov              # ARM64 Linux 可执行文件
 # prov.yaml       # 配置文件示例
 ```
 
 ### 产物部署
 ```bash
 # 将产物复制到 TBOX 设备
-scp output/TboxProvService user@tbox-device:/usr/bin/
+scp output/tbox_prov user@tbox-device:/usr/bin/
 scp config/prov.yaml user@tbox-device:/etc/tbox/conf.d/prov.yaml
 ```
 

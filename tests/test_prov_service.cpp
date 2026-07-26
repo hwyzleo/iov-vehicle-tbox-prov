@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 #include "prov_service.h"
 #include "framework_store.h"
+#include "config.h"
 #include <filesystem>
 #include <chrono>
+#include <fstream>
 
 using namespace tbox::prov;
 
@@ -11,6 +13,37 @@ protected:
     void SetUp() override {
         test_dir_ = "/tmp/prov_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
         std::filesystem::create_directories(test_dir_);
+        
+        // 创建测试配置目录结构（ConfigManager 需要 common.yaml 和 conf.d/prov.yaml）
+        std::filesystem::path config_dir = test_dir_ + "/conf.d";
+        std::filesystem::create_directories(config_dir);
+        
+        // 创建 common.yaml（必需，框架校验器需要 log 配置）
+        std::filesystem::path common_config = test_dir_ + "/common.yaml";
+        {
+            std::ofstream file(common_config);
+            file << "# TBOX Common Configuration\n";
+            file << "log:\n";
+            file << "  type: console\n";
+            file << "  path: ./log.txt\n";
+            file.close();
+        }
+        
+        // 复制配置文件到测试目录
+        std::filesystem::path src_config = std::filesystem::current_path().parent_path() / "config" / "prov.yaml";
+        std::filesystem::path dst_config = config_dir / "prov.yaml";
+        if (std::filesystem::exists(src_config)) {
+            std::filesystem::copy_file(src_config, dst_config, std::filesystem::copy_options::overwrite_existing);
+        } else {
+            // 如果找不到配置文件，创建一个基本的配置
+            std::ofstream file(dst_config);
+            file << "ecu:\n";
+            file << "  uid: \"00000000000000000000000000000001\"\n";
+            file.close();
+        }
+        
+        // 加载框架配置（使用测试目录作为配置根目录）
+        CONFIG_MANAGER.load("prov", test_dir_);
         
         store_ = std::make_unique<tbox::framework::Store>("prov", test_dir_);
         config_.enable_write_protection = true;

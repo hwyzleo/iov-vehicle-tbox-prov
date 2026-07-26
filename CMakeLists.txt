@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(TboxProvService)
+project(tbox_prov)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -23,8 +23,8 @@ elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     endif ()
 endif ()
 
-# HWYZ Framework (provides yaml-cpp, spdlog, config management)
-find_package(HWYZ REQUIRED)
+# TBox Framework (provides yaml-cpp, spdlog, config management)
+find_package(TBoxFramework REQUIRED)
 
 # Google Test
 find_package(GTest REQUIRED)
@@ -51,8 +51,8 @@ set(LIB_SOURCES
 # Static library for other modules to link against
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
 target_include_directories(TboxProvLib PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(TboxProvLib PUBLIC ${HWYZ_LIBRARIES} nlohmann_json::nlohmann_json)
-target_include_directories(TboxProvLib PUBLIC ${HWYZ_INCLUDE_DIR})
+target_link_libraries(TboxProvLib PUBLIC ${TBoxFramework_LIBRARIES} nlohmann_json::nlohmann_json)
+target_include_directories(TboxProvLib PUBLIC ${TBoxFramework_INCLUDE_DIR})
 target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 
 # Client stub library for IPC communication
@@ -69,11 +69,13 @@ target_compile_definitions(ProvClient PRIVATE TEST_ENVIRONMENT)
 set(LIB_INSTALL_DIR "../lib" CACHE PATH "Relative path to library directory")
 get_filename_component(LIB_INSTALL_DIR_ABS "${LIB_INSTALL_DIR}" ABSOLUTE)
 set(CMAKE_INSTALL_RPATH "${LIB_INSTALL_DIR_ABS}")
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+# 不要使用 CMAKE_BUILD_WITH_INSTALL_RPATH，它会覆盖 CMake 自动计算的 build RPATH
+# 导致 conan 依赖库（yaml-cpp、gtest）找不到
+# CMake 会根据链接目标自动设置 build RPATH，包含所有必要的库目录
 
 # Main executable
-add_executable(TboxProvService src/main.cpp)
-target_link_libraries(TboxProvService PRIVATE TboxProvLib)
+add_executable(tbox_prov src/main.cpp)
+target_link_libraries(tbox_prov PRIVATE TboxProvLib)
 
 # Tests
 enable_testing()

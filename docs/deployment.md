@@ -166,10 +166,10 @@ logging:
 
 ```bash
 # 启动服务
-./TboxProvService
+./tbox_prov
 
 # 或者指定配置文件
-./TboxProvService --config /path/to/config.yaml
+./tbox_prov --config /path/to/config.yaml
 ```
 
 ### Systemd服务
@@ -185,7 +185,7 @@ After=network.target
 Type=simple
 User=tbox
 Group=tbox
-ExecStart=/usr/bin/TboxProvService
+ExecStart=/usr/bin/tbox_prov
 Restart=always
 RestartSec=5
 
@@ -221,7 +221,7 @@ mkdir -p /var/tbox/prov
 mkdir -p /var/log/tbox
 
 # 启动服务
-exec /usr/bin/TboxProvService "$@"
+exec /usr/bin/tbox_prov "$@"
 ```
 
 ## 监控和日志
@@ -246,7 +246,7 @@ grep -i error /var/log/tbox/prov.log
 systemctl status tbox-prov
 
 # 检查进程是否存在
-ps aux | grep TboxProvService
+ps aux | grep tbox_prov
 
 # 检查端口监听（如果使用网络）
 netstat -tlnp | grep tbox
@@ -256,7 +256,7 @@ netstat -tlnp | grep tbox
 
 ```bash
 # 查看CPU和内存使用
-top -p $(pgrep TboxProvService)
+top -p $(pgrep tbox_prov)
 
 # 查看磁盘使用
 du -sh /var/tbox/prov
@@ -294,7 +294,7 @@ iostat -x 1
 
 2. **使用GDB调试**
    ```bash
-   gdb ./TboxProvService
+   gdb ./tbox_prov
    (gdb) run
    (gdb) bt  # 查看调用栈
    ```
@@ -303,7 +303,7 @@ iostat -x 1
    ```bash
    ulimit -c unlimited
    # 重现问题后
-   gdb ./TboxProvService core
+   gdb ./tbox_prov core
    ```
 
 ## 升级和维护
@@ -322,8 +322,8 @@ iostat -x 1
 
 3. **更新二进制文件**
    ```bash
-   sudo cp TboxProvService /usr/bin/
-   sudo chmod +x /usr/bin/TboxProvService
+   sudo cp tbox_prov /usr/bin/
+   sudo chmod +x /usr/bin/tbox_prov
    ```
 
 4. **更新配置（如有必要）**

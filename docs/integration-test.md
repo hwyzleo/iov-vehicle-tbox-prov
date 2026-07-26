@@ -23,7 +23,7 @@ cd iov-vehicle-tbox-diag/build
 
 ```bash
 cd iov-vehicle-tbox-prov/build
-./TboxProvService
+./tbox_prov
 ```
 
 ### 3. 发送 UDS 请求

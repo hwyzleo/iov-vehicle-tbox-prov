@@ -25,9 +25,9 @@ RUN mkdir -p build && cd build && \
 
 # Create output directory
 RUN mkdir -p /output && \
-    cp build/TboxProvService /output/ && \
+    cp build/tbox_prov /output/ && \
     cp config/prov_config.yaml /output/ && \
-    ldd build/TboxProvService | grep "=> /" | awk '{print $3}' | sort -u | xargs -I {} cp {} /output/lib/ 2>/dev/null || true
+    ldd build/tbox_prov | grep "=> /" | awk '{print $3}' | sort -u | xargs -I {} cp {} /output/lib/ 2>/dev/null || true
 
 # Default command: copy output to mounted volume
 CMD ["sh", "-c", "cp -r /output/* /dest/ 2>/dev/null || echo 'Mount a volume to /dest to get the build output'"]

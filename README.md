@@ -183,7 +183,7 @@ ctest --output-on-failure
 
 ```bash
 # 手动启动
-./TboxProvService
+./tbox_prov
 ```
 
 ## 配置说明
