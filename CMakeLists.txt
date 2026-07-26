@@ -87,6 +87,7 @@ add_executable(TboxProvTests
     tests/test_log_adapter.cpp
     tests/test_context.cpp
     tests/test_log_events.cpp
+    tests/test_log_integration.cpp
 )
 target_link_libraries(TboxProvTests PRIVATE TboxProvLib ProvClient GTest::GTest GTest::Main)
 target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)
