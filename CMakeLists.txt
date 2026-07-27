@@ -8,6 +8,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_definitions("-Wall -lpthread -g")
 
+include(GNUInstallDirs)
+
 # Platform-specific library directories
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
     if (APPLE)
@@ -23,7 +25,7 @@ elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     endif ()
 endif ()
 
-# TBox Framework (provides yaml-cpp, spdlog, config management)
+# TBox Framework (provides yaml-cpp, spdlog, config management, framework-ipc)
 find_package(TBoxFramework REQUIRED)
 
 # Google Test
@@ -33,7 +35,9 @@ include_directories(${GTEST_INCLUDE_DIRS})
 # nlohmann_json
 find_package(nlohmann_json REQUIRED)
 
-# Library source files (without main.cpp)
+# ============================================================
+# Daemon library (TboxProvLib)
+# ============================================================
 set(LIB_SOURCES
     src/prov_service.cpp
     src/protected_storage.cpp
@@ -42,42 +46,88 @@ set(LIB_SOURCES
     src/vin_validator.cpp
     src/data_models.cpp
     src/error_codes.cpp
-    src/ipc_protocol.cpp
-    src/ipc_server.cpp
+    src/prov_ipc_dispatcher.cpp
     src/prov_log_adapter.cpp
     src/prov_context.cpp
 )
 
-# Static library for other modules to link against
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
 target_include_directories(TboxProvLib PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(TboxProvLib PUBLIC ${TBoxFramework_LIBRARIES} nlohmann_json::nlohmann_json)
 target_include_directories(TboxProvLib PUBLIC ${TBoxFramework_INCLUDE_DIR})
 target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 
-# Client stub library for IPC communication
+# ============================================================
+# Client SDK library (tbox_prov_client / tbox::prov_client)
+# ============================================================
 set(CLIENT_SOURCES
     src/prov_client.cpp
-    src/ipc_protocol.cpp
     src/error_codes.cpp
 )
-add_library(ProvClient STATIC ${CLIENT_SOURCES})
-target_include_directories(ProvClient PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(ProvClient PUBLIC nlohmann_json::nlohmann_json)
-target_compile_definitions(ProvClient PRIVATE TEST_ENVIRONMENT)
+
+add_library(tbox_prov_client STATIC ${CLIENT_SOURCES})
+add_library(tbox::prov_client ALIAS tbox_prov_client)
+
+# PUBLIC: only business facade/DTO headers
+target_include_directories(tbox_prov_client
+    PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+# PRIVATE: framework-ipc link and internal headers
+target_link_libraries(tbox_prov_client
+    PUBLIC nlohmann_json::nlohmann_json
+    PRIVATE ${TBoxFramework_LIBRARIES}
+)
+target_include_directories(tbox_prov_client PRIVATE ${TBoxFramework_INCLUDE_DIR})
+target_compile_definitions(tbox_prov_client PRIVATE TEST_ENVIRONMENT)
+
+# Install public SDK headers
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/tbox/prov/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tbox/prov
+    FILES_MATCHING PATTERN "*.h"
+)
+
+# Install client library
+install(TARGETS tbox_prov_client
+    EXPORT TboxProvClientTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+# Export CMake config
+install(EXPORT TboxProvClientTargets
+    FILE TboxProvClientTargets.cmake
+    NAMESPACE tbox::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TboxProvClient
+)
+
+# CMake config file
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/TboxProvClientConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/TboxProvClientConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TboxProvClient
+)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/TboxProvClientConfig.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TboxProvClient
+)
 
 set(LIB_INSTALL_DIR "../lib" CACHE PATH "Relative path to library directory")
 get_filename_component(LIB_INSTALL_DIR_ABS "${LIB_INSTALL_DIR}" ABSOLUTE)
 set(CMAKE_INSTALL_RPATH "${LIB_INSTALL_DIR_ABS}")
-# 不要使用 CMAKE_BUILD_WITH_INSTALL_RPATH，它会覆盖 CMake 自动计算的 build RPATH
-# 导致 conan 依赖库（yaml-cpp、gtest）找不到
-# CMake 会根据链接目标自动设置 build RPATH，包含所有必要的库目录
 
+# ============================================================
 # Main executable
+# ============================================================
 add_executable(tbox_prov src/main.cpp)
 target_link_libraries(tbox_prov PRIVATE TboxProvLib)
 
+# ============================================================
 # Tests
+# ============================================================
 enable_testing()
 add_executable(TboxProvTests
     tests/test_prov_service.cpp
@@ -90,8 +140,9 @@ add_executable(TboxProvTests
     tests/test_context.cpp
     tests/test_log_events.cpp
     tests/test_log_integration.cpp
+    tests/test_prov_ipc_dispatcher.cpp
 )
-target_link_libraries(TboxProvTests PRIVATE TboxProvLib ProvClient GTest::GTest GTest::Main)
+target_link_libraries(TboxProvTests PRIVATE TboxProvLib tbox_prov_client GTest::GTest GTest::Main)
 target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)
 add_test(NAME TboxProvTests COMMAND TboxProvTests)
 

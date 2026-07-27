@@ -2,7 +2,8 @@
 #include "prov_log_adapter.h"
 #include "prov_context.h"
 #include "protected_storage_impl.h"
-#include "ipc_server.h"
+#include "prov_ipc_dispatcher.h"
+#include "ipc.h"
 #include "log.h"
 #include <iostream>
 #include <chrono>
@@ -93,25 +94,56 @@ bool ProvService::start_ipc_server() {
         return false;
     }
     
-    if (ipc_server_) {
+    if (fw_ipc_server_) {
         return true;  // 已经启动
     }
     
-    ipc_server_ = std::make_unique<ipc::IpcServer>(config_.ipc_socket_path);
-    if (!ipc_server_->start(this)) {
-        ipc_server_.reset();
+    // 创建 dispatcher
+    ipc_dispatcher_ = std::make_unique<ProvIpcDispatcher>(this);
+    
+    // 创建 framework-ipc Server
+    fw_ipc_server_ = std::make_unique<::tbox::fw::ipc::Server>(
+        config_.ipc_socket_path, config_.ipc_config);
+    
+    // 注册 RequestHandler（适配 dispatcher）
+    auto* dispatcher_ptr = ipc_dispatcher_.get();
+    auto request_handler = [dispatcher_ptr](uint32_t method_id,
+                                            std::string_view params_json,
+                                            int client_fd) -> std::string {
+        return dispatcher_ptr->dispatch(method_id, params_json, client_fd);
+    };
+    
+    // disconnect handler（当前无业务会话清理，预留）
+    auto disconnect_handler = [](int client_fd) {
+        ProvLogAdapter::ipc().debug("prov.ipc.client_disconnected",
+            "Client disconnected (framework)",
+            {tbox::fw::log::Field("client_fd", tbox::fw::log::FieldValue::makeInt(client_fd))}
+        );
+    };
+    
+    if (!fw_ipc_server_->start(std::move(request_handler), std::move(disconnect_handler))) {
+        fw_ipc_server_.reset();
+        ipc_dispatcher_.reset();
         return false;
     }
     
+    ProvLogAdapter::ipc().info("prov.ipc.started",
+        "IPC server started (framework-ipc)",
+        {tbox::fw::log::Field("socket_path", tbox::fw::log::FieldValue::makeString(config_.ipc_socket_path))}
+    );
     return true;
 }
 
 void ProvService::stop_ipc_server() {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    if (ipc_server_) {
-        ipc_server_->stop();
-        ipc_server_.reset();
+    if (fw_ipc_server_) {
+        fw_ipc_server_->stop();
+        fw_ipc_server_.reset();
+        ipc_dispatcher_.reset();
+        ProvLogAdapter::ipc().info("prov.ipc.stopped",
+            "IPC server stopped (framework-ipc)"
+        );
     }
 }
 

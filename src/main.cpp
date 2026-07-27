@@ -69,6 +69,23 @@ int main(int argc, char* argv[]) {
     tbox::prov::ProvServiceConfig config;
     config.enable_write_protection = cfg->getBool("storage.enable_write_protection", true);
     config.max_retry_count = cfg->getInt("storage.max_retry_count", 3);
+    config.ipc_socket_path = cfg->getString("prov.ipc.socket_path", "/tmp/tbox-prov.sock");
+
+    // 读取 IPC 配置并注入 framework-ipc
+    config.ipc_config.max_frame_bytes = static_cast<uint32_t>(
+        cfg->getInt("common.ipc.max_frame_bytes", 10485760));
+    config.ipc_config.receive_timeout_ms = static_cast<uint32_t>(
+        cfg->getInt("common.ipc.receive_timeout_ms", 60000));
+    config.ipc_config.connect_timeout_ms = static_cast<uint32_t>(
+        cfg->getInt("common.ipc.connect_timeout_ms", 3000));
+    config.ipc_config.listen_backlog =
+        cfg->getInt("common.ipc.listen_backlog", 5);
+    config.ipc_config.reconnect.initial_backoff_ms = static_cast<uint32_t>(
+        cfg->getInt("common.ipc.reconnect.initial_backoff_ms", 100));
+    config.ipc_config.reconnect.max_backoff_ms = static_cast<uint32_t>(
+        cfg->getInt("common.ipc.reconnect.max_backoff_ms", 5000));
+    config.ipc_config.reconnect.multiplier =
+        cfg->getDouble("common.ipc.reconnect.multiplier", 2.0);
     
     // 创建 Store 实例
     tbox::framework::Store store("prov", store_root);

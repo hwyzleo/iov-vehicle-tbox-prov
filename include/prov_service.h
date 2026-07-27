@@ -5,25 +5,28 @@
 #include <mutex>
 #include <thread>
 #include <atomic>
-#include "data_models.h"
-#include "error_codes.h"
+#include "tbox/prov/types.h"
+#include "tbox/prov/errors.h"
 #include "protected_storage.h"
 #include "framework_store.h"
 #include "vin_validator.h"
 #include "ecu_uid.h"
+#include "ipc_types.h"
 
 namespace tbox {
 namespace prov {
 
-// 前向声明
-namespace ipc {
-class IpcServer;
-}
+class ProvIpcDispatcher;
+
+} // namespace prov
+namespace fw { namespace ipc { class Server; } }
+namespace prov {
 
 struct ProvServiceConfig {
     bool enable_write_protection = true;
     uint32_t max_retry_count = 3;
     std::string ipc_socket_path = "/tmp/tbox-prov.sock";
+    ::tbox::fw::ipc::IpcConfig ipc_config{};
 };
 
 class ProvService {
@@ -71,7 +74,8 @@ protected:
     bool initialized_ = false;
     
     std::unique_ptr<ProtectedStorage> storage_;
-    std::unique_ptr<ipc::IpcServer> ipc_server_;
+    std::unique_ptr<::tbox::fw::ipc::Server> fw_ipc_server_;
+    std::unique_ptr<ProvIpcDispatcher> ipc_dispatcher_;
     
     mutable std::mutex mutex_;
     

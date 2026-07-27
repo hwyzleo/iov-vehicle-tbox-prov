@@ -176,3 +176,99 @@ TEST_F(IpcTest, WriteVinWithoutSecurityAccess) {
     
     client.disconnect();
 }
+
+// ============================================================
+// framework-ipc 集成测试
+// ============================================================
+
+TEST_F(IpcTest, InitializeViaIpcReturnsSuccess) {
+    service_->initialize();
+    service_->start_ipc_server();
+    
+    ProvClient client(config_.ipc_socket_path);
+    ASSERT_TRUE(client.connect());
+    
+    ErrorCode result = client.initialize();
+    EXPECT_EQ(result, ErrorCode::SUCCESS);
+    
+    client.disconnect();
+}
+
+TEST_F(IpcTest, ReadBindingViaIpcReturnsEmptyBinding) {
+    service_->initialize();
+    service_->start_ipc_server();
+    
+    ProvClient client(config_.ipc_socket_path);
+    ASSERT_TRUE(client.connect());
+    
+    VehicleBinding binding = client.read_binding();
+    EXPECT_TRUE(binding.vin.empty());
+    EXPECT_TRUE(binding.ecu_uid.empty());
+    EXPECT_EQ(binding.state, ProvisionState::NONE);
+    EXPECT_FALSE(binding.locked);
+    
+    client.disconnect();
+}
+
+TEST_F(IpcTest, WriteVinReturnsBusinessError) {
+    service_->initialize();
+    service_->start_ipc_server();
+    
+    ProvClient client(config_.ipc_socket_path);
+    ASSERT_TRUE(client.connect());
+    
+    // 尝试写入非法 VIN，应返回业务错误码（非 SUCCESS）
+    ErrorCode result = client.write_vin("invalid");
+    EXPECT_NE(result, ErrorCode::SUCCESS);
+    
+    client.disconnect();
+}
+
+TEST_F(IpcTest, AuthorizeRewriteReturnsBusinessError) {
+    service_->initialize();
+    service_->start_ipc_server();
+    
+    ProvClient client(config_.ipc_socket_path);
+    ASSERT_TRUE(client.connect());
+    
+    // 尝试授权重写非法 VIN，应返回业务错误码
+    ErrorCode result = client.authorize_rewrite("bad_vin");
+    EXPECT_NE(result, ErrorCode::SUCCESS);
+    
+    client.disconnect();
+}
+
+TEST_F(IpcTest, MultipleSequentialCallsOnSameConnection) {
+    service_->initialize();
+    service_->start_ipc_server();
+    
+    ProvClient client(config_.ipc_socket_path);
+    ASSERT_TRUE(client.connect());
+    
+    // 在同一连接上连续调用多个方法
+    auto state = client.get_provision_state();
+    EXPECT_EQ(state, ProvisionState::NONE);
+    
+    auto vin = client.read_vin();
+    EXPECT_TRUE(vin.empty());
+    
+    auto binding = client.read_binding();
+    EXPECT_TRUE(binding.vin.empty());
+    
+    state = client.get_provision_state();
+    EXPECT_EQ(state, ProvisionState::NONE);
+    
+    client.disconnect();
+}
+
+TEST_F(IpcTest, LazyConnectOnFirstCall) {
+    service_->initialize();
+    service_->start_ipc_server();
+    
+    ProvClient client(config_.ipc_socket_path);
+    // 不显式 connect，直接调用
+    std::string vin = client.read_vin();
+    EXPECT_TRUE(vin.empty());
+    
+    client.disconnect();
+}
