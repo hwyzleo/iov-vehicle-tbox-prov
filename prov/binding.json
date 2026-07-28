@@ -1,0 +1,4 @@
+{
+    "type": "string",
+    "value": "{\n    \"bound_at\": 1785246055,\n    \"ecu_uid\": \"00000000000000000000000000000001\",\n    \"last_error\": \"\",\n    \"last_rewrite_at\": 0,\n    \"locked\": false,\n    \"retry_count\": 0,\n    \"rewrite_count\": 0,\n    \"state\": 2,\n    \"vin\": \"HWYZTEST900000001\"\n}"
+}
