@@ -3,26 +3,71 @@
 #include "framework_store.h"
 #include "config.h"
 #include <iostream>
+#include <cstring>
 #include <signal.h>
+#include <unistd.h>
 #include <atomic>
 #include <thread>
 #include <chrono>
 
-std::atomic<bool> shutdown_requested(false);
+// 信号处理器与主循环之间唯一的共享状态，必须是 lock-free 的
+static std::atomic<bool> shutdown_requested(false);
+// 记录触发停机的信号编号，供退出日志使用
+static volatile sig_atomic_t received_signal = 0;
 
-void signal_handler(int signal) {
-    if (signal == SIGINT || signal == SIGTERM) {
-        // 信号处理仍使用 stderr，因为 Logger 可能正在关闭
-        std::cerr << "\n[signal] received signal " << signal << ", requesting shutdown" << std::endl;
-        shutdown_requested = true;
+// 异步信号安全的信号处理器：
+// 只允许 write(2) 与对 atomic/sig_atomic_t 的写入，
+// 不得使用 iostream / printf / 分配内存 / 加锁
+extern "C" void signal_handler(int signum) {
+    received_signal = signum;
+    shutdown_requested.store(true, std::memory_order_relaxed);
+
+    static const char msg[] = "\n[signal] shutdown requested\n";
+    // 忽略返回值：处理器内无法做有意义的错误处理
+    ssize_t ignored = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    (void)ignored;
+}
+
+// 使用 sigaction 而非 signal，避免不同平台上处置语义（是否自动重置、
+// 是否重启系统调用）的差异
+static bool install_signal_handlers() {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = signal_handler;
+    sigemptyset(&sa.sa_mask);
+    // 处理期间屏蔽其他停机信号，避免处理器重入
+    sigaddset(&sa.sa_mask, SIGINT);
+    sigaddset(&sa.sa_mask, SIGTERM);
+    sigaddset(&sa.sa_mask, SIGHUP);
+    // SA_RESTART：让阻塞的系统调用自动重启，减少 EINTR 干扰
+    sa.sa_flags = SA_RESTART;
+
+    const int shutdown_signals[] = {SIGINT, SIGTERM, SIGHUP};
+    for (int sig : shutdown_signals) {
+        if (sigaction(sig, &sa, nullptr) != 0) {
+            std::cerr << "FATAL: sigaction failed for signal " << sig << std::endl;
+            return false;
+        }
     }
+
+    // 忽略 SIGPIPE：对端断开时由 write 返回 EPIPE 处理
+    struct sigaction sa_ign;
+    memset(&sa_ign, 0, sizeof(sa_ign));
+    sa_ign.sa_handler = SIG_IGN;
+    sigemptyset(&sa_ign.sa_mask);
+    if (sigaction(SIGPIPE, &sa_ign, nullptr) != 0) {
+        std::cerr << "FATAL: sigaction failed for SIGPIPE" << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 int main(int argc, char* argv[]) {
     // 设置信号处理
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
-    signal(SIGPIPE, SIG_IGN);
+    if (!install_signal_handlers()) {
+        return 1;
+    }
     
     // 加载框架配置
     auto err = CONFIG_MANAGER.load("prov");
@@ -120,13 +165,22 @@ int main(int argc, char* argv[]) {
     );
     
     // 主循环（UDS协议处理由DIAG服务负责）
-    while (!shutdown_requested) {
+    while (!shutdown_requested.load(std::memory_order_relaxed)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    
+
     tbox::prov::ProvLogAdapter::service().info("prov.service.shutting_down",
-        "Shutting down PROV service..."
+        "Shutting down PROV service...",
+        {tbox::fw::log::Field("signal",
+            tbox::fw::log::FieldValue::makeInt(static_cast<int>(received_signal)))}
     );
-    
+
+    // 显式停机：不依赖析构顺序，确保 IPC 线程回收与 socket 文件清理完成
+    service.stop_ipc_server();
+
+    tbox::prov::ProvLogAdapter::service().info("prov.service.stopped",
+        "PROV service stopped"
+    );
+
     return 0;
 }
