@@ -1,18 +1,11 @@
 # TBOX PROV Service Configuration
-# 此文件可部署为 /etc/tbox/conf.d/prov.yaml（服务专属配置）
+# 此文件可部署为 /etc/tbox/conf.d/prov.yaml 或作为项目级覆盖（./config/prov.yaml）
+# 公共配置（common / monitoring）见 common.yaml，此处可按需覆盖公共参数
 
-common:
-  store:
-    root: "."
-  ipc:
-    max_frame_bytes: 10485760    # 10 MiB
-    receive_timeout_ms: 60000    # 60 秒空闲超时
-    connect_timeout_ms: 3000
-    listen_backlog: 5
-    reconnect:
-      initial_backoff_ms: 100
-      max_backoff_ms: 5000
-      multiplier: 2.0
+# 公共配置覆盖示例（按需启用）
+# common:
+#   log:
+#     level: "debug"    # 开发环境可覆盖日志级别
 
 # PROV 服务专属配置
 prov:
@@ -26,8 +19,6 @@ ecu:
 
 # 存储配置
 storage:
-  # 存储路径
-  path: "/var/tbox/prov"
   # 写保护使能
   enable_write_protection: true
   # 最大重试次数
@@ -57,17 +48,3 @@ did:
 # RID配置
 rid:
   rewrite_routine: 0xFF00
-
-# 日志配置
-log:
-  level: "INFO"
-  file: "/var/log/tbox/prov.log"
-  max_size: 10485760  # 10MB
-  max_files: 5
-
-# 监控配置
-monitoring:
-  # 健康检查间隔（秒）
-  health_check_interval: 30
-  # 状态上报间隔（秒）
-  status_report_interval: 60

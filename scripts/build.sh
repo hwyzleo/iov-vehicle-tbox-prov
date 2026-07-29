@@ -23,7 +23,17 @@ NC='\033[0m' # No Color
 # 项目根目录
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
-FRAMEWORK_DIR="${PROJECT_ROOT}/../iov-vehicle-tbox-framework/build"
+
+# 构建环境单一来源：由 framework 仓库提供 TBOX_PREFIX / TBoxFramework_DIR
+# 切换本地开发与生产环境只需覆盖环境变量，例如：
+#   TBOX_PREFIX=/opt/tbox ./scripts/build.sh
+TBOX_ENV_FILE="${PROJECT_ROOT}/../iov-vehicle-tbox-framework/scripts/tbox-env.sh"
+if [ ! -f "${TBOX_ENV_FILE}" ]; then
+    echo "[ERROR] 未找到 ${TBOX_ENV_FILE}" >&2
+    echo "        请确认 iov-vehicle-tbox-framework 与本项目位于同级目录" >&2
+    exit 1
+fi
+source "${TBOX_ENV_FILE}"
 
 # 默认选项
 CLEAN_BUILD=false
@@ -126,7 +136,7 @@ configure_project() {
     cmake .. \
         -DCMAKE_TOOLCHAIN_FILE=${BUILD_DIR}/conan_toolchain.cmake \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-        -DTBoxFramework_DIR=${HOME}/.local/lib/cmake/TBoxFramework
+        -DTBoxFramework_DIR="${TBoxFramework_DIR}"
 
     if [ $? -ne 0 ]; then
         print_error "CMake 配置失败"

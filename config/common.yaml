@@ -1,0 +1,28 @@
+# TBOX Common Configuration
+# 此文件可部署为 /etc/tbox/common.yaml（框架公共配置，跨服务共享）
+
+common:
+  store:
+    root: "/var/tbox"
+  ipc:
+    max_frame_bytes: 10485760    # 10 MiB
+    receive_timeout_ms: 60000    # 60 秒空闲超时
+    connect_timeout_ms: 3000
+    listen_backlog: 5
+    reconnect:
+      initial_backoff_ms: 100
+      max_backoff_ms: 5000
+      multiplier: 2.0
+  # 日志默认配置（代码读取 common.log.level）
+  log:
+    level: "info"                       # 默认日志级别（trace/debug/info/warn/error）
+    file: "/var/log/tbox/prov.log"
+    max_size: 10485760                  # 10MB
+    max_files: 5
+
+# 监控配置
+monitoring:
+  # 健康检查间隔（秒）
+  health_check_interval: 30
+  # 状态上报间隔（秒）
+  status_report_interval: 60

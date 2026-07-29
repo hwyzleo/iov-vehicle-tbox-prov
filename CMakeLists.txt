@@ -25,8 +25,13 @@ elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     endif ()
 endif ()
 
-# TBox Framework (provides yaml-cpp, spdlog, config management, framework-ipc)
-find_package(TBoxFramework REQUIRED)
+# TBox Framework：统一通过 find_package 消费（自包含 yaml-cpp / spdlog / config / store / ipc）
+# 查找前缀由各项目 scripts/build.sh 从 iov-vehicle-tbox-framework/scripts/tbox-env.sh
+# 取得的 TBOX_PREFIX 决定，切换本地/生产环境无需改动本文件。
+# 本项目也可能被兄弟项目（如 diag）以 add_subdirectory 方式引入，故做幂等保护。
+if(NOT TARGET TBoxFramework::tbox-framework)
+    find_package(TBoxFramework REQUIRED)
+endif()
 
 # Google Test
 find_package(GTest REQUIRED)
@@ -54,7 +59,7 @@ set(LIB_SOURCES
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
 target_include_directories(TboxProvLib PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(TboxProvLib PUBLIC ${TBoxFramework_LIBRARIES} nlohmann_json::nlohmann_json)
-target_include_directories(TboxProvLib PUBLIC ${TBoxFramework_INCLUDE_DIR})
+target_include_directories(TboxProvLib PUBLIC ${TBoxFramework_INCLUDE_DIRS})
 target_compile_definitions(TboxProvLib PRIVATE TEST_ENVIRONMENT)
 
 # ============================================================
@@ -80,7 +85,7 @@ target_link_libraries(tbox_prov_client
     PUBLIC nlohmann_json::nlohmann_json
     PRIVATE ${TBoxFramework_LIBRARIES}
 )
-target_include_directories(tbox_prov_client PRIVATE ${TBoxFramework_INCLUDE_DIR})
+target_include_directories(tbox_prov_client PRIVATE ${TBoxFramework_INCLUDE_DIRS})
 target_compile_definitions(tbox_prov_client PRIVATE TEST_ENVIRONMENT)
 
 # Install public SDK headers

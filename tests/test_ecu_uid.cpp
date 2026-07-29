@@ -21,14 +21,15 @@ protected:
         std::filesystem::path config_dir = test_dir_ + "/conf.d";
         std::filesystem::create_directories(config_dir);
         
-        // 创建 common.yaml（必需，框架校验器需要 log 配置）
+        // 创建 common.yaml（必需，框架校验器要求 common.log 配置）
         std::filesystem::path common_config = test_dir_ + "/common.yaml";
         {
             std::ofstream file(common_config);
             file << "# TBOX Common Configuration\n";
-            file << "log:\n";
-            file << "  type: console\n";
-            file << "  path: ./log.txt\n";
+            file << "common:\n";
+            file << "  log:\n";
+            file << "    type: console\n";
+            file << "    path: ./log.txt\n";
             file.close();
         }
         
