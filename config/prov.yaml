@@ -3,9 +3,12 @@
 # 公共配置（common / monitoring）见 common.yaml，此处可按需覆盖公共参数
 
 # 公共配置覆盖示例（按需启用）
-# common:
-#   log:
-#     level: "debug"    # 开发环境可覆盖日志级别
+common:
+  store:
+    root: "./data"
+  log:
+    level: "debug"                       # 默认日志级别（trace/debug/info/warn/error）
+    file: "./log/prov.log"
 
 # PROV 服务专属配置
 prov:

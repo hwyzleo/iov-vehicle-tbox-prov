@@ -13,10 +13,8 @@ common:
       initial_backoff_ms: 100
       max_backoff_ms: 5000
       multiplier: 2.0
-  # 日志默认配置（代码读取 common.log.level）
   log:
     level: "info"                       # 默认日志级别（trace/debug/info/warn/error）
-    file: "/var/log/tbox/prov.log"
     max_size: 10485760                  # 10MB
     max_files: 5
 
