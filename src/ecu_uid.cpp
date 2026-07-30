@@ -1,4 +1,5 @@
 #include "ecu_uid.h"
+#include "se_uid_provider.h"
 #include "config.h"
 #include "error_codes.h"
 #include <iostream>
@@ -48,38 +49,17 @@ std::string EcuUid::read_from_se() {
     return "SE987654321";
 }
 
+// TBOX-PROV-DSN-CR-008 §14.3: 静态便捷接口转发到默认 SeUidProvider 实例，
+// 保留既有单元测试（test_ecu_uid.cpp）与调用方平滑迁移。
 std::string EcuUid::read_uid() {
-    auto result = read_uid_detailed();
+    auto provider = createSeUidProvider();
+    auto result = provider->readUidDetailed();
     return result.success ? result.uid : "";
 }
 
 UidReadResult EcuUid::read_uid_detailed() {
-    // 1. 优先尝试从SE读取
-    if (is_se_hardware_present()) {
-        // SE在位，尝试读取
-        std::string uid = read_from_se();
-        if (!uid.empty()) {
-            return UidReadResult(uid);
-        }
-        
-        // SE读取失败，返回PROV-1008错误
-        return UidReadResult(ErrorCode::SE_UID_READ_FAILED, "SE UID读取失败/超时");
-    }
-    
-    // 2. SE硬件缺失
-    if (is_test_environment()) {
-        // 测试环境，尝试从配置读取（使用框架ConfigManager）
-        auto config_uid = read_uid_from_config();
-        if (config_uid.has_value()) {
-            return UidReadResult(config_uid.value());
-        }
-        
-        // 配置缺失或无对应UID，返回PROV-1009错误
-        return UidReadResult(ErrorCode::SE_MISSING_CONFIG_NOT_FOUND, "无SE且配置缺失/无对应UID");
-    }
-    
-    // 3. 生产环境无SE，返回PROV-1010错误（fail-closed）
-    return UidReadResult(ErrorCode::SE_MISSING_PRODUCTION_FAIL_CLOSED, "生产环境无SE，禁止配置文件兜底");
+    auto provider = createSeUidProvider();
+    return provider->readUidDetailed();
 }
 
 bool EcuUid::validate(const std::string& uid) {

@@ -48,9 +48,13 @@ int main(int argc, char* argv[]) {
 
     // 创建 Store 实例
     tbox::framework::Store store("prov", store_root);
-    
+
+    // 创建 UID/SN Provider（注入 ProvService，支撑故障注入）
+    auto uid_provider = createSeUidProvider();
+    auto sn_provider = createTboxSnProvider();
+
     // 创建并初始化 PROV 服务
-    ProvService service(store, config);
+    ProvService service(store, config, *uid_provider, *sn_provider);
     auto result = service.initialize();
 
     if (result != ErrorCode::SUCCESS) {

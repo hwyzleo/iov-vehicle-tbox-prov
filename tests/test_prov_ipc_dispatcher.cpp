@@ -21,16 +21,17 @@ protected:
         store_ = std::make_unique<tbox::framework::Store>("prov", test_dir_);
         config_.enable_write_protection = true;
         config_.max_retry_count = 3;
-        config_.ipc_socket_path = test_dir_ + "/test.sock";
 
-        service_ = std::make_unique<tbox::prov::ProvService>(*store_, config_);
+        uid_provider_ = tbox::prov::createSeUidProvider();
+        sn_provider_ = tbox::prov::createTboxSnProvider();
+        service_ = std::make_unique<tbox::prov::ProvService>(
+            *store_, config_, *uid_provider_, *sn_provider_);
         service_->initialize();
         dispatcher_ = std::make_unique<tbox::prov::ProvIpcDispatcher>(service_.get());
     }
 
     void TearDown() override {
         dispatcher_.reset();
-        service_->stop_ipc_server();
         service_.reset();
         store_.reset();
         std::filesystem::remove_all(test_dir_);
@@ -45,6 +46,8 @@ protected:
     std::string test_dir_;
     std::unique_ptr<tbox::framework::Store> store_;
     tbox::prov::ProvServiceConfig config_;
+    std::unique_ptr<tbox::prov::SeUidProvider> uid_provider_;
+    std::unique_ptr<tbox::prov::TboxSnProvider> sn_provider_;
     std::unique_ptr<tbox::prov::ProvService> service_;
     std::unique_ptr<tbox::prov::ProvIpcDispatcher> dispatcher_;
 };

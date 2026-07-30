@@ -6,14 +6,18 @@
 common:
   store:
     root: "./data"
+  # 日志：开发环境仅用 console（framework RollingFileSink 的 mkdir 非递归，
+  # 需 root 目录预存；生产部署用 common.yaml 的 file.root=/var/log/tbox）
   log:
-    level: "debug"                       # 默认日志级别（trace/debug/info/warn/error）
-    file: "./log/prov.log"
+    file:
+      enabled: false
 
 # PROV 服务专属配置
 prov:
   ipc:
     socket_path: "/tmp/tbox-prov.sock"
+  log:
+    level: "debug"                     # 服务级日志级别覆盖
   # TBOX 设备序列号（仅测试环境使用，生产环境从 TBOX SN 权威来源读取）
   # 与 ecu.uid（HSM UID）独立配置、独立验证，不得互相兜底
   sn: "00000005AA00000001"

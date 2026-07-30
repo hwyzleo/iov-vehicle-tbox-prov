@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 #include "prov_service.h"
+#include "prov_ipc_dispatcher.h"
 #include "prov_client.h"
 #include "framework_store.h"
+#include "ipc.h"
 #include "config.h"
 #include <filesystem>
 #include <chrono>
@@ -11,6 +13,8 @@
 
 using namespace tbox::prov;
 
+// TBOX-PROV-DSN-CR-008: ProvService 不再持有 IPC，测试手动装配 dispatcher + ipc::Server，
+// 等价 ProvApplication 的 IPC 部分。
 class IpcTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -20,31 +24,62 @@ protected:
         store_ = std::make_unique<tbox::framework::Store>("prov", test_dir_);
         config_.enable_write_protection = true;
         config_.max_retry_count = 3;
-        config_.ipc_socket_path = test_dir_ + "/test.sock";
-        
-        service_ = std::make_unique<ProvService>(*store_, config_);
+        socket_path_ = test_dir_ + "/test.sock";
+
+        uid_provider_ = createSeUidProvider();
+        sn_provider_ = createTboxSnProvider();
+        service_ = std::make_unique<ProvService>(*store_, config_, *uid_provider_, *sn_provider_);
     }
     
     void TearDown() override {
-        if (service_) {
-            service_->stop_ipc_server();
-        }
+        stopIpc();
         service_.reset();
+        sn_provider_.reset();
+        uid_provider_.reset();
         store_.reset();
         std::filesystem::remove_all(test_dir_);
     }
+
+    /// 手动装配 dispatcher + framework-ipc Server（等价 ProvApplication::initialize 的 IPC 部分）
+    bool startIpc() {
+        dispatcher_ = std::make_unique<ProvIpcDispatcher>(service_.get());
+        ipc_server_ = std::make_unique<tbox::fw::ipc::Server>(socket_path_, tbox::fw::ipc::IpcConfig{});
+        auto* disp = dispatcher_.get();
+        auto handler = [disp](uint32_t method_id, std::string_view params, int fd) -> std::string {
+            return disp->dispatch(method_id, params, fd);
+        };
+        if (!ipc_server_->start(std::move(handler), {})) {
+            ipc_server_.reset();
+            dispatcher_.reset();
+            return false;
+        }
+        return true;
+    }
+
+    void stopIpc() {
+        if (ipc_server_) {
+            ipc_server_->stop();
+            ipc_server_.reset();
+        }
+        dispatcher_.reset();
+    }
     
     std::string test_dir_;
+    std::string socket_path_;
     std::unique_ptr<tbox::framework::Store> store_;
     ProvServiceConfig config_;
+    std::unique_ptr<SeUidProvider> uid_provider_;
+    std::unique_ptr<TboxSnProvider> sn_provider_;
     std::unique_ptr<ProvService> service_;
+    std::unique_ptr<ProvIpcDispatcher> dispatcher_;
+    std::unique_ptr<tbox::fw::ipc::Server> ipc_server_;
 };
 
 TEST_F(IpcTest, InitializeAndStartIpcServer) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
 }
 
@@ -52,10 +87,10 @@ TEST_F(IpcTest, ConnectClient) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     bool connected = client.connect();
     EXPECT_TRUE(connected);
     
@@ -66,10 +101,10 @@ TEST_F(IpcTest, ReadVinViaIpc) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     bool connected = client.connect();
     EXPECT_TRUE(connected);
     
@@ -84,10 +119,10 @@ TEST_F(IpcTest, GetProvisionStateViaIpc) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     bool connected = client.connect();
     EXPECT_TRUE(connected);
     
@@ -102,12 +137,12 @@ TEST_F(IpcTest, MultipleClients) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
     
     // 创建多个客户端
-    ProvClient client1(config_.ipc_socket_path);
-    ProvClient client2(config_.ipc_socket_path);
+    ProvClient client1(socket_path_);
+    ProvClient client2(socket_path_);
     
     bool connected1 = client1.connect();
     bool connected2 = client2.connect();
@@ -127,10 +162,10 @@ TEST_F(IpcTest, ClientReconnect) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     
     // 第一次连接
     bool connected = client.connect();
@@ -153,14 +188,14 @@ TEST_F(IpcTest, ServerShutdown) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
     
     // 停止服务器
-    service_->stop_ipc_server();
+    stopIpc();
     
     // 客户端应该无法连接
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     bool connected = client.connect();
     EXPECT_FALSE(connected);
 }
@@ -169,10 +204,10 @@ TEST_F(IpcTest, WriteVinWithoutSecurityAccess) {
     auto result = service_->initialize();
     EXPECT_EQ(result, ErrorCode::SUCCESS);
     
-    bool started = service_->start_ipc_server();
+    bool started = startIpc();
     EXPECT_TRUE(started);
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     bool connected = client.connect();
     EXPECT_TRUE(connected);
     
@@ -185,9 +220,9 @@ TEST_F(IpcTest, WriteVinWithoutSecurityAccess) {
 
 TEST_F(IpcTest, InitializeViaIpcReturnsSuccess) {
     service_->initialize();
-    service_->start_ipc_server();
+    startIpc();
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     ASSERT_TRUE(client.connect());
     
     ErrorCode result = client.initialize();
@@ -198,9 +233,9 @@ TEST_F(IpcTest, InitializeViaIpcReturnsSuccess) {
 
 TEST_F(IpcTest, ReadBindingViaIpcReturnsEmptyBinding) {
     service_->initialize();
-    service_->start_ipc_server();
+    startIpc();
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     ASSERT_TRUE(client.connect());
     
     VehicleBinding binding = client.read_binding();
@@ -215,9 +250,9 @@ TEST_F(IpcTest, ReadBindingViaIpcReturnsEmptyBinding) {
 
 TEST_F(IpcTest, WriteVinReturnsBusinessError) {
     service_->initialize();
-    service_->start_ipc_server();
+    startIpc();
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     ASSERT_TRUE(client.connect());
     
     // 尝试写入非法 VIN，应返回业务错误码（非 SUCCESS）
@@ -229,9 +264,9 @@ TEST_F(IpcTest, WriteVinReturnsBusinessError) {
 
 TEST_F(IpcTest, AuthorizeRewriteReturnsBusinessError) {
     service_->initialize();
-    service_->start_ipc_server();
+    startIpc();
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     ASSERT_TRUE(client.connect());
     
     // 尝试授权重写非法 VIN，应返回业务错误码
@@ -243,9 +278,9 @@ TEST_F(IpcTest, AuthorizeRewriteReturnsBusinessError) {
 
 TEST_F(IpcTest, MultipleSequentialCallsOnSameConnection) {
     service_->initialize();
-    service_->start_ipc_server();
+    startIpc();
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     ASSERT_TRUE(client.connect());
     
     // 在同一连接上连续调用多个方法
@@ -266,9 +301,9 @@ TEST_F(IpcTest, MultipleSequentialCallsOnSameConnection) {
 
 TEST_F(IpcTest, LazyConnectOnFirstCall) {
     service_->initialize();
-    service_->start_ipc_server();
+    startIpc();
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     // 不显式 connect，直接调用
     std::string vin = client.read_vin();
     EXPECT_TRUE(vin.empty());
@@ -280,7 +315,7 @@ TEST_F(IpcTest, LazyConnectOnFirstCall) {
 // CR-007: readBinding 经 IPC 返回 sn（US-007）
 // ============================================================
 TEST_F(IpcTest, ReadBindingViaIpcReturnsSnAfterBinding) {
-    // 加载配置（prov.sn + ecu.uid），供 ConfigTboxSnProvider 与 EcuUid 读取
+    // 加载配置（prov.sn + ecu.uid），供 ConfigTboxSnProvider 与 SeUidProvider 读取
     std::filesystem::path config_dir = std::string(test_dir_) + "/conf.d";
     std::filesystem::create_directories(config_dir);
     {
@@ -294,10 +329,16 @@ TEST_F(IpcTest, ReadBindingViaIpcReturnsSnAfterBinding) {
     }
     CONFIG_MANAGER.load("prov", test_dir_);
 
+    // 重新构造 service，使其使用新配置的 providers
+    service_.reset();
+    uid_provider_ = createSeUidProvider();
+    sn_provider_ = createTboxSnProvider();
+    service_ = std::make_unique<ProvService>(*store_, config_, *uid_provider_, *sn_provider_);
+
     service_->initialize();
-    service_->start_ipc_server();
+    startIpc();
     
-    ProvClient client(config_.ipc_socket_path);
+    ProvClient client(socket_path_);
     ASSERT_TRUE(client.connect());
     ASSERT_EQ(client.initialize(), ErrorCode::SUCCESS);
     

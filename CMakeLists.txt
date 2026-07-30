@@ -48,6 +48,7 @@ set(LIB_SOURCES
     src/protected_storage.cpp
     src/framework_store.cpp
     src/ecu_uid.cpp
+    src/se_uid_provider.cpp
     src/tbox_sn_provider.cpp
     src/vin_validator.cpp
     src/data_models.cpp
@@ -55,6 +56,7 @@ set(LIB_SOURCES
     src/prov_ipc_dispatcher.cpp
     src/prov_log_adapter.cpp
     src/prov_context.cpp
+    src/prov_application.cpp
 )
 
 add_library(TboxProvLib STATIC ${LIB_SOURCES})
@@ -128,7 +130,15 @@ set(CMAKE_INSTALL_RPATH "${LIB_INSTALL_DIR_ABS}")
 # ============================================================
 # Main executable
 # ============================================================
-add_executable(tbox_prov src/main.cpp)
+# TBOX-PROV-DSN-CR-008 §10.1: 构建期切换 Application 生命周期。
+#   ON  -> ProvApplication（hwyz::Application 编排）
+#   OFF -> 旧式手写生命周期（回滚验证用，验收后删除）
+option(PROV_USE_FRAMEWORK_APPLICATION "Use hwyz::Application lifecycle" ON)
+if(PROV_USE_FRAMEWORK_APPLICATION)
+    add_executable(tbox_prov src/main.cpp)
+else()
+    add_executable(tbox_prov src/main_legacy.cpp)
+endif()
 target_link_libraries(tbox_prov PRIVATE TboxProvLib)
 
 # ============================================================
@@ -148,6 +158,7 @@ add_executable(TboxProvTests
     tests/test_log_events.cpp
     tests/test_log_integration.cpp
     tests/test_prov_ipc_dispatcher.cpp
+    tests/test_prov_application.cpp
 )
 target_link_libraries(TboxProvTests PRIVATE TboxProvLib tbox_prov_client GTest::GTest GTest::Main)
 target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)

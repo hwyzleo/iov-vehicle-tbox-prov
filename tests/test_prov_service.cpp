@@ -49,8 +49,10 @@ protected:
         store_ = std::make_unique<tbox::framework::Store>("prov", test_dir_);
         config_.enable_write_protection = true;
         config_.max_retry_count = 3;
-        
-        service_ = std::make_unique<ProvService>(*store_, config_);
+
+        uid_provider_ = createSeUidProvider();
+        sn_provider_ = createTboxSnProvider();
+        service_ = std::make_unique<ProvService>(*store_, config_, *uid_provider_, *sn_provider_);
     }
     
     void TearDown() override {
@@ -81,6 +83,8 @@ protected:
     std::string test_dir_;
     std::unique_ptr<tbox::framework::Store> store_;
     ProvServiceConfig config_;
+    std::unique_ptr<SeUidProvider> uid_provider_;
+    std::unique_ptr<TboxSnProvider> sn_provider_;
     std::unique_ptr<ProvService> service_;
 };
 

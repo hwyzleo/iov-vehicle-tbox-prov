@@ -46,9 +46,11 @@ public:
     // 从配置读取UID（仅测试环境，使用框架ConfigManager）
     static std::optional<std::string> read_uid_from_config();
 
-private:
-    // 从SE读取UID的具体实现
+    // 从SE读取UID的具体实现（供 SeUidProvider 实现复用）
     static std::string read_from_se();
+
+private:
+    // SeUidProvider 派生类可直接复用上述静态能力；构造逻辑由 createSeUidProvider 选择。
 };
 
 } // namespace prov

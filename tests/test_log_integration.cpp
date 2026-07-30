@@ -19,7 +19,10 @@ protected:
         ASSERT_EQ(result.error, tbox::fw::log::LogError::kOk);
         
         store_ = std::make_unique<tbox::framework::Store>("prov_test", "/tmp/tbox_test");
-        service_ = std::make_unique<ProvService>(*store_);
+        uid_provider_ = createSeUidProvider();
+        sn_provider_ = createTboxSnProvider();
+        service_ = std::make_unique<ProvService>(*store_, ProvServiceConfig{},
+            *uid_provider_, *sn_provider_);
     }
 
     void TearDown() override {
@@ -28,6 +31,8 @@ protected:
     }
 
     std::unique_ptr<tbox::framework::Store> store_;
+    std::unique_ptr<SeUidProvider> uid_provider_;
+    std::unique_ptr<TboxSnProvider> sn_provider_;
     std::unique_ptr<ProvService> service_;
 };
 

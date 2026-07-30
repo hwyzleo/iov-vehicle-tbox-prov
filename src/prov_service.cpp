@@ -2,8 +2,6 @@
 #include "prov_log_adapter.h"
 #include "prov_context.h"
 #include "protected_storage_impl.h"
-#include "prov_ipc_dispatcher.h"
-#include "ipc.h"
 #include "log.h"
 #include <iostream>
 #include <chrono>
@@ -61,18 +59,17 @@ std::string provision_state_to_string(ProvisionState state) {
 }
 } // anonymous namespace
 
-ProvService::ProvService(tbox::framework::Store& store) 
-    : store_(store) {
-    config_.enable_write_protection = true;
-    config_.max_retry_count = 3;
-}
-
-ProvService::ProvService(tbox::framework::Store& store, const ProvServiceConfig& config) 
-    : store_(store), config_(config) {
+ProvService::ProvService(tbox::framework::Store& store,
+                         const ProvServiceConfig& config,
+                         SeUidProvider& uid_provider,
+                         TboxSnProvider& sn_provider)
+    : store_(store), config_(config),
+      uid_provider_(uid_provider), sn_provider_(sn_provider) {
 }
 
 ProvService::~ProvService() {
-    stop_ipc_server();
+    // IPC 传输与 dispatcher 已由 ProvApplication 在 cleanup 中有序停止并销毁；
+    // 析构仅确保业务内核资源（ProtectedStorage）释放。
 }
 
 ErrorCode ProvService::initialize() {
@@ -92,64 +89,10 @@ ErrorCode ProvService::initialize() {
     return ErrorCode::SUCCESS;
 }
 
-bool ProvService::start_ipc_server() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (!initialized_) {
-        return false;
-    }
-    
-    if (fw_ipc_server_) {
-        return true;  // 已经启动
-    }
-    
-    // 创建 dispatcher
-    ipc_dispatcher_ = std::make_unique<ProvIpcDispatcher>(this);
-    
-    // 创建 framework-ipc Server
-    fw_ipc_server_ = std::make_unique<::tbox::fw::ipc::Server>(
-        config_.ipc_socket_path, config_.ipc_config);
-    
-    // 注册 RequestHandler（适配 dispatcher）
-    auto* dispatcher_ptr = ipc_dispatcher_.get();
-    auto request_handler = [dispatcher_ptr](uint32_t method_id,
-                                            std::string_view params_json,
-                                            int client_fd) -> std::string {
-        return dispatcher_ptr->dispatch(method_id, params_json, client_fd);
-    };
-    
-    // disconnect handler（当前无业务会话清理，预留）
-    auto disconnect_handler = [](int client_fd) {
-        ProvLogAdapter::ipc().debug("prov.ipc.client_disconnected",
-            "Client disconnected (framework)",
-            {tbox::fw::log::Field("client_fd", tbox::fw::log::FieldValue::makeInt(client_fd))}
-        );
-    };
-    
-    if (!fw_ipc_server_->start(std::move(request_handler), std::move(disconnect_handler))) {
-        fw_ipc_server_.reset();
-        ipc_dispatcher_.reset();
-        return false;
-    }
-    
-    ProvLogAdapter::ipc().info("prov.ipc.started",
-        "IPC server started (framework-ipc)",
-        {tbox::fw::log::Field("socket_path", tbox::fw::log::FieldValue::makeString(config_.ipc_socket_path))}
-    );
-    return true;
-}
-
-void ProvService::stop_ipc_server() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (fw_ipc_server_) {
-        fw_ipc_server_->stop();
-        fw_ipc_server_.reset();
-        ipc_dispatcher_.reset();
-        ProvLogAdapter::ipc().info("prov.ipc.stopped",
-            "IPC server stopped (framework-ipc)"
-        );
-    }
+void ProvService::beginShutdown() {
+    shutting_down_.store(true, std::memory_order_relaxed);
+    ProvLogAdapter::service().info("prov.service.shutdown_begin",
+        "PROV service entering shutdown, rejecting new writes");
 }
 
 ErrorCode ProvService::write_vin(const std::string& vin) {
@@ -158,7 +101,12 @@ ErrorCode ProvService::write_vin(const std::string& vin) {
     if (!initialized_) {
         return ErrorCode::INVALID_STATE;
     }
-    
+
+    // 停机后拒绝新业务写入（quiesce，CR-008 §14.2）
+    if (shutting_down_.load(std::memory_order_relaxed)) {
+        return ErrorCode::INVALID_STATE;
+    }
+
     // 验证VIN格式
     ErrorCode result = validate_vin_format(vin);
     if (result != ErrorCode::SUCCESS) {
@@ -200,9 +148,9 @@ VehicleBinding ProvService::read_binding() const {
     // 若存储的 sn 为空（含旧快照），经 SN Provider 补齐到返回值（不写回存储）
     // sn 与 ecu_uid 独立：SN 失败不得回退 ecu_uid，反之亦然
     // 仅当存在绑定时补齐 sn（无绑定时不读取 SN）
-    if (stored_binding.has_value() && binding.sn.empty() && sn_provider_) {
+    if (stored_binding.has_value() && binding.sn.empty()) {
         auto sn_start = std::chrono::steady_clock::now();
-        auto sn_result = sn_provider_->readSn();
+        auto sn_result = sn_provider_.readSn();
         auto sn_end = std::chrono::steady_clock::now();
         auto sn_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             sn_end - sn_start).count();
@@ -247,6 +195,11 @@ ErrorCode ProvService::write_vehicle_config(const std::vector<uint8_t>& config_d
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (!initialized_) {
+        return ErrorCode::INVALID_STATE;
+    }
+    
+    // 停机后拒绝新业务写入（quiesce，CR-008 §14.2）
+    if (shutting_down_.load(std::memory_order_relaxed)) {
         return ErrorCode::INVALID_STATE;
     }
     
@@ -324,6 +277,11 @@ ErrorCode ProvService::write_production_info(const ProductionInfo& info) {
         return ErrorCode::INVALID_STATE;
     }
     
+    // 停机后拒绝新业务写入（quiesce，CR-008 §14.2）
+    if (shutting_down_.load(std::memory_order_relaxed)) {
+        return ErrorCode::INVALID_STATE;
+    }
+    
     // 检查写保护
     if (is_write_protected()) {
         return ErrorCode::SECURITY_ACCESS_NOT_GRANTED;
@@ -397,6 +355,11 @@ ErrorCode ProvService::authorize_rewrite(const std::string& new_vin) {
         return ErrorCode::INVALID_STATE;
     }
     
+    // 停机后拒绝新业务写入（quiesce，CR-008 §14.2）
+    if (shutting_down_.load(std::memory_order_relaxed)) {
+        return ErrorCode::INVALID_STATE;
+    }
+    
     // 验证VIN格式
     ErrorCode result = validate_vin_format(new_vin);
     if (result != ErrorCode::SUCCESS) {
@@ -440,8 +403,8 @@ ErrorCode ProvService::execute_vin_binding_flow(const std::string& vin) {
     auto start = std::chrono::steady_clock::now();
     auto vin_hash = hash_vin(vin);
     
-    // 读取ECU UID
-    auto uid_result = EcuUid::read_uid_detailed();
+    // 读取ECU UID（经注入的 SeUidProvider，支撑故障注入）
+    auto uid_result = uid_provider_.readUidDetailed();
     if (!uid_result.success) {
         auto end = std::chrono::steady_clock::now();
         auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -527,7 +490,8 @@ ErrorCode ProvService::validate_vin_format(const std::string& vin) {
 }
 
 std::string ProvService::read_ecu_uid() {
-    return EcuUid::read_uid();
+    auto result = uid_provider_.readUidDetailed();
+    return result.success ? result.uid : "";
 }
 
 ErrorCode ProvService::establish_binding(const std::string& vin, const std::string& ecu_uid) {
