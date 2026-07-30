@@ -25,6 +25,7 @@ TEST_F(DataModelsTest, VehicleBindingDefault) {
     VehicleBinding binding;
     EXPECT_EQ(binding.vin, "");
     EXPECT_EQ(binding.ecu_uid, "");
+    EXPECT_EQ(binding.sn, "");
     EXPECT_EQ(binding.state, ProvisionState::NONE);
     EXPECT_FALSE(binding.locked);
     EXPECT_EQ(binding.retry_count, 0);
@@ -36,6 +37,7 @@ TEST_F(DataModelsTest, VehicleBindingAssignment) {
     VehicleBinding binding;
     binding.vin = "1HGBH41JXMN109186";
     binding.ecu_uid = "ECU123456789";
+    binding.sn = "TBOX-SN-12345";
     binding.state = ProvisionState::BOUND;
     binding.locked = true;
     binding.retry_count = 2;
@@ -43,6 +45,7 @@ TEST_F(DataModelsTest, VehicleBindingAssignment) {
     
     EXPECT_EQ(binding.vin, "1HGBH41JXMN109186");
     EXPECT_EQ(binding.ecu_uid, "ECU123456789");
+    EXPECT_EQ(binding.sn, "TBOX-SN-12345");
     EXPECT_EQ(binding.state, ProvisionState::BOUND);
     EXPECT_TRUE(binding.locked);
     EXPECT_EQ(binding.retry_count, 2);

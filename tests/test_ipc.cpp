@@ -2,10 +2,12 @@
 #include "prov_service.h"
 #include "prov_client.h"
 #include "framework_store.h"
+#include "config.h"
 #include <filesystem>
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <fstream>
 
 using namespace tbox::prov;
 
@@ -204,6 +206,7 @@ TEST_F(IpcTest, ReadBindingViaIpcReturnsEmptyBinding) {
     VehicleBinding binding = client.read_binding();
     EXPECT_TRUE(binding.vin.empty());
     EXPECT_TRUE(binding.ecu_uid.empty());
+    EXPECT_TRUE(binding.sn.empty());  // CR-007: 无绑定时 sn 为空
     EXPECT_EQ(binding.state, ProvisionState::NONE);
     EXPECT_FALSE(binding.locked);
     
@@ -269,6 +272,44 @@ TEST_F(IpcTest, LazyConnectOnFirstCall) {
     // 不显式 connect，直接调用
     std::string vin = client.read_vin();
     EXPECT_TRUE(vin.empty());
+    
+    client.disconnect();
+}
+
+// ============================================================
+// CR-007: readBinding 经 IPC 返回 sn（US-007）
+// ============================================================
+TEST_F(IpcTest, ReadBindingViaIpcReturnsSnAfterBinding) {
+    // 加载配置（prov.sn + ecu.uid），供 ConfigTboxSnProvider 与 EcuUid 读取
+    std::filesystem::path config_dir = std::string(test_dir_) + "/conf.d";
+    std::filesystem::create_directories(config_dir);
+    {
+        std::ofstream file(std::string(test_dir_) + "/common.yaml");
+        file << "common:\n  log:\n    type: console\n    path: ./log.txt\n";
+    }
+    {
+        std::ofstream file(std::string(config_dir) + "/prov.yaml");
+        file << "prov:\n  sn: \"TBOX-SN-IPC-TEST\"\n";
+        file << "ecu:\n  uid: \"00000000000000000000000000000001\"\n";
+    }
+    CONFIG_MANAGER.load("prov", test_dir_);
+
+    service_->initialize();
+    service_->start_ipc_server();
+    
+    ProvClient client(config_.ipc_socket_path);
+    ASSERT_TRUE(client.connect());
+    ASSERT_EQ(client.initialize(), ErrorCode::SUCCESS);
+    
+    // 写入合法 VIN 建立绑定
+    ASSERT_EQ(client.write_vin("1HGBH41JXMN109186"), ErrorCode::SUCCESS);
+    
+    // 读取绑定：应包含 sn（由 ConfigTboxSnProvider 从 prov.sn 补齐）
+    VehicleBinding binding = client.read_binding();
+    EXPECT_EQ(binding.vin, "1HGBH41JXMN109186");
+    EXPECT_EQ(binding.state, ProvisionState::BOUND);
+    EXPECT_EQ(binding.sn, "TBOX-SN-IPC-TEST");
+    EXPECT_NE(binding.sn, binding.ecu_uid);  // sn 与 ecu_uid 独立
     
     client.disconnect();
 }

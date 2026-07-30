@@ -11,6 +11,7 @@
 #include "framework_store.h"
 #include "vin_validator.h"
 #include "ecu_uid.h"
+#include "tbox_sn_provider.h"
 #include "ipc_types.h"
 
 namespace tbox {
@@ -74,6 +75,8 @@ protected:
     bool initialized_ = false;
     
     std::unique_ptr<ProtectedStorage> storage_;
+    // TBOX SN 来源（与 ECU UID 独立；默认由工厂按编译环境选择，可被测试覆盖）
+    std::unique_ptr<TboxSnProvider> sn_provider_ = createTboxSnProvider();
     std::unique_ptr<::tbox::fw::ipc::Server> fw_ipc_server_;
     std::unique_ptr<ProvIpcDispatcher> ipc_dispatcher_;
     

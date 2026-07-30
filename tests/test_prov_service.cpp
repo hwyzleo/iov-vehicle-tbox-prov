@@ -59,6 +59,25 @@ protected:
         std::filesystem::remove_all(test_dir_);
     }
     
+    /// 重新加载配置（指定 prov.sn 与 ecu.uid），用于控制 SN/UID 来源
+    /// ConfigTboxSnProvider 与 EcuUid 均在调用时动态读取 CONFIG_SNAPSHOT
+    void reloadConfig(const std::string& sn, const std::string& uid) {
+        std::filesystem::path config_dir = std::string(test_dir_) + "/conf.d";
+        std::filesystem::create_directories(config_dir);
+        std::filesystem::path prov_config = std::string(config_dir) + "/prov.yaml";
+        {
+            std::ofstream file(prov_config);
+            file << "prov:\n";
+            if (!sn.empty()) {
+                file << "  sn: \"" << sn << "\"\n";
+            }
+            file << "ecu:\n";
+            file << "  uid: \"" << uid << "\"\n";
+            file.close();
+        }
+        CONFIG_MANAGER.load("prov", test_dir_);
+    }
+    
     std::string test_dir_;
     std::unique_ptr<tbox::framework::Store> store_;
     ProvServiceConfig config_;
@@ -165,6 +184,71 @@ TEST_F(ProvServiceTest, WriteProductionInfoWriteProtected) {
     
     auto result = service_->write_production_info(info);
     EXPECT_EQ(result, ErrorCode::SECURITY_ACCESS_NOT_GRANTED);
+}
+
+// ============================================================
+// CR-007: readBinding SN 补齐与标识隔离（US-007）
+// ============================================================
+
+TEST_F(ProvServiceTest, ReadBindingFillsSnFromProvider) {
+    reloadConfig("TBOX-SN-12345", "00000000000000000000000000000001");
+    service_->initialize();
+    service_->write_vin("1HGBH41JXMN109186");
+
+    auto binding = service_->read_binding();
+    EXPECT_EQ(binding.vin, "1HGBH41JXMN109186");
+    EXPECT_EQ(binding.state, ProvisionState::BOUND);
+    // SN 由 ConfigTboxSnProvider 从 prov.sn 补齐到返回值（不写回存储）
+    EXPECT_EQ(binding.sn, "TBOX-SN-12345");
+    // sn 与 ecu_uid 独立，不得以相等性作为校验条件
+    EXPECT_NE(binding.sn, binding.ecu_uid);
+}
+
+TEST_F(ProvServiceTest, ReadBindingSnUnavailableKeepsBindingValid) {
+    // prov.sn 缺失：SN 不可用是异常，但绑定本身仍有效（VIN 已写入=成功）
+    reloadConfig("", "00000000000000000000000000000001");  // 无 prov.sn
+    service_->initialize();
+    service_->write_vin("1HGBH41JXMN109186");
+
+    auto binding = service_->read_binding();
+    // 绑定字段正常（VIN 写入即绑定成功）
+    EXPECT_EQ(binding.vin, "1HGBH41JXMN109186");
+    EXPECT_FALSE(binding.ecu_uid.empty());
+    EXPECT_EQ(binding.state, ProvisionState::BOUND);
+    // SN 不可用：sn 为空，不得回退 ecu_uid
+    EXPECT_TRUE(binding.sn.empty());
+    EXPECT_NE(binding.sn, binding.ecu_uid);
+}
+
+TEST_F(ProvServiceTest, SnAndEcuUidIndependentlySourced) {
+    // sn 与 ecu_uid 即使值相同，也来自独立来源（prov.sn vs ecu.uid），不互相兜底
+    reloadConfig("SAME-VALUE", "SAME-VALUE");
+    service_->initialize();
+    service_->write_vin("1HGBH41JXMN109186");
+
+    auto binding = service_->read_binding();
+    // 两者各自独立读取成功
+    EXPECT_EQ(binding.sn, "SAME-VALUE");
+    EXPECT_EQ(binding.ecu_uid, "SAME-VALUE");
+    // sn 不加入绑定键；绑定状态正常
+    EXPECT_EQ(binding.state, ProvisionState::BOUND);
+}
+
+TEST_F(ProvServiceTest, ReadBindingDoesNotPersistSnFromProvider) {
+    // SN 补齐仅作用于返回值，不写回存储（避免触发写保护/改变绑定记录）
+    reloadConfig("TBOX-SN-12345", "00000000000000000000000000000001");
+    service_->initialize();
+    service_->write_vin("1HGBH41JXMN109186");
+
+    // 第一次读取补齐 sn
+    auto b1 = service_->read_binding();
+    EXPECT_EQ(b1.sn, "TBOX-SN-12345");
+
+    // 移除 prov.sn 后再读：存储中 sn 仍为空，应再次走 Provider（此时不可用）
+    reloadConfig("", "00000000000000000000000000000001");
+    auto b2 = service_->read_binding();
+    EXPECT_EQ(b2.vin, "1HGBH41JXMN109186");
+    EXPECT_TRUE(b2.sn.empty());  // 补齐未写回，存储 sn 仍空
 }
 
 int main(int argc, char **argv) {

@@ -43,7 +43,11 @@ enum class ErrorCode : uint32_t {
     INTERNAL_ERROR = 9999,
     STORAGE_ERROR = 9998,
     ECU_UID_READ_ERROR = 9997,
-    INVALID_STATE = 9996
+    INVALID_STATE = 9996,
+
+    // SN 不可用（非 PROV-10xx 业务失败；readBinding 绑定仍成功，仅 sn 缺失）
+    // 由 TboxSnProvider 读取失败时上报，用于 prov.sn.read_failed 日志事件
+    SN_UNAVAILABLE = 9995
 };
 
 std::string error_code_to_string(ErrorCode code);

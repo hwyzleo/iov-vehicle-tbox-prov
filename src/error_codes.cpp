@@ -19,7 +19,8 @@ static const std::map<ErrorCode, std::string> error_code_strings = {
     {ErrorCode::INTERNAL_ERROR, "INTERNAL-9999"},
     {ErrorCode::STORAGE_ERROR, "INTERNAL-9998"},
     {ErrorCode::ECU_UID_READ_ERROR, "INTERNAL-9997"},
-    {ErrorCode::INVALID_STATE, "INTERNAL-9996"}
+    {ErrorCode::INVALID_STATE, "INTERNAL-9996"},
+    {ErrorCode::SN_UNAVAILABLE, "SN-UNAVAILABLE-9995"}
 };
 
 static const std::map<ErrorCode, std::string> error_code_descriptions = {
@@ -37,7 +38,8 @@ static const std::map<ErrorCode, std::string> error_code_descriptions = {
     {ErrorCode::INTERNAL_ERROR, "内部错误"},
     {ErrorCode::STORAGE_ERROR, "存储错误"},
     {ErrorCode::ECU_UID_READ_ERROR, "ECU UID读取错误"},
-    {ErrorCode::INVALID_STATE, "无效状态"}
+    {ErrorCode::INVALID_STATE, "无效状态"},
+    {ErrorCode::SN_UNAVAILABLE, "TBOX SN不可用（读取失败或配置缺失，不回退HSM UID）"}
 };
 
 std::string error_code_to_string(ErrorCode code) {

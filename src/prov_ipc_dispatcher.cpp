@@ -143,6 +143,7 @@ std::pair<int32_t, std::string> ProvIpcDispatcher::handle_read_binding() {
     nlohmann::json j;
     j["vin"] = binding.vin;
     j["ecu_uid"] = binding.ecu_uid;
+    j["sn"] = binding.sn;  // TBOX SN（与 HSM ecu_uid 独立，可为空=不可用）
     j["state"] = static_cast<int>(binding.state);
     j["locked"] = binding.locked;
     return {0, j.dump()};

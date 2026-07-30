@@ -18,7 +18,8 @@ enum class ProvisionState : uint8_t {
 
 struct VehicleBinding {
     std::string vin;                    // 17位VIN码
-    std::string ecu_uid;                // ECU硬件序列号
+    std::string ecu_uid;                // HSM 唯一 ID（SE UID / 测试环境 prov.uid）
+    std::string sn;                     // TBOX 设备序列号（与 ecu_uid 独立，不得互相兜底）
     ProvisionState state = ProvisionState::NONE;
     bool locked = false;                // 写保护标志
     std::chrono::system_clock::time_point bound_at;  // 绑定时间

@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 #include "protected_storage_impl.h"
 #include "framework_store.h"
+#include <nlohmann/json.hpp>
 #include <filesystem>
 #include <cstdio>
+#include <ctime>
 
 namespace tbox {
 namespace prov {
@@ -40,6 +42,7 @@ TEST_F(ProtectedStorageTest, ReadWriteVehicleBinding) {
     VehicleBinding binding;
     binding.vin = "1HGBH41JXMN109186";
     binding.ecu_uid = "ECU123456789";
+    binding.sn = "TBOX-SN-12345";
     binding.state = ProvisionState::BOUND;
     binding.locked = true;
     binding.retry_count = 2;
@@ -53,6 +56,7 @@ TEST_F(ProtectedStorageTest, ReadWriteVehicleBinding) {
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->vin, binding.vin);
     EXPECT_EQ(result->ecu_uid, binding.ecu_uid);
+    EXPECT_EQ(result->sn, binding.sn);
     EXPECT_EQ(result->state, binding.state);
     EXPECT_EQ(result->locked, binding.locked);
     EXPECT_EQ(result->retry_count, binding.retry_count);
@@ -153,6 +157,64 @@ TEST_F(ProtectedStorageTest, NonExistentData) {
     
     auto info = storage.read_production_info();
     EXPECT_FALSE(info.has_value());
+}
+
+// ============================================================
+// CR-007: 旧持久化快照兼容（无 sn 字段）
+// ============================================================
+TEST_F(ProtectedStorageTest, OldSnapshotWithoutSnLoadsAsEmpty) {
+    // 旧版本持久化的绑定快照不含 sn 字段时，反序列化 sn 为空，其余字段保持不变；
+    // 不得以 ecu_uid 作为缺失 sn 的默认值。
+    ProtectedStorageImpl storage(*store_);
+    ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
+
+    // 模拟旧版本快照（无 sn 字段）
+    nlohmann::json old_snapshot;
+    old_snapshot["vin"] = "1HGBH41JXMN109186";
+    old_snapshot["ecu_uid"] = "ECU123456789";
+    old_snapshot["state"] = static_cast<uint8_t>(ProvisionState::BOUND);
+    old_snapshot["locked"] = true;
+    old_snapshot["bound_at"] = static_cast<std::time_t>(0);
+    old_snapshot["last_error"] = "";
+    old_snapshot["retry_count"] = 0;
+    old_snapshot["rewrite_count"] = 0;
+    old_snapshot["last_rewrite_at"] = static_cast<std::time_t>(0);
+    // 故意不写入 sn 字段
+
+    ASSERT_TRUE(store_->save<std::string>("binding", old_snapshot.dump()));
+
+    // 读取：应加载成功，sn 为空，其他字段保持
+    auto result = storage.read_vehicle_binding();
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->vin, "1HGBH41JXMN109186");
+    EXPECT_EQ(result->ecu_uid, "ECU123456789");
+    EXPECT_EQ(result->sn, "");  // 旧快照无 sn -> 空，由 Provider 补齐
+    EXPECT_NE(result->sn, result->ecu_uid);  // 不得以 ecu_uid 代填
+    EXPECT_EQ(result->state, ProvisionState::BOUND);
+    EXPECT_TRUE(result->locked);
+    EXPECT_EQ(result->retry_count, 0);
+    EXPECT_EQ(result->rewrite_count, 0);
+}
+
+TEST_F(ProtectedStorageTest, NewSnapshotWithSnRoundTrip) {
+    // 新版本快照含 sn 字段时，读写往返保持 sn 值
+    ProtectedStorageImpl storage(*store_);
+    ASSERT_EQ(storage.initialize(), ErrorCode::SUCCESS);
+
+    VehicleBinding binding;
+    binding.vin = "1HGBH41JXMN109186";
+    binding.ecu_uid = "ECU123456789";
+    binding.sn = "TBOX-SN-99999";
+    binding.state = ProvisionState::BOUND;
+    binding.locked = false;
+
+    ASSERT_EQ(storage.write_vehicle_binding(binding), ErrorCode::SUCCESS);
+
+    auto result = storage.read_vehicle_binding();
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->sn, "TBOX-SN-99999");
+    EXPECT_EQ(result->vin, binding.vin);
+    EXPECT_EQ(result->ecu_uid, binding.ecu_uid);
 }
 
 } // namespace testing

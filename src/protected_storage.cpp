@@ -189,6 +189,7 @@ std::string ProtectedStorageImpl::serialize_binding(const VehicleBinding& bindin
     nlohmann::json j;
     j["vin"] = binding.vin;
     j["ecu_uid"] = binding.ecu_uid;
+    j["sn"] = binding.sn;  // TBOX 设备序列号（与 ecu_uid 独立）
     j["state"] = static_cast<uint8_t>(binding.state);
     j["locked"] = binding.locked;
     j["bound_at"] = std::chrono::system_clock::to_time_t(binding.bound_at);
@@ -204,6 +205,9 @@ VehicleBinding ProtectedStorageImpl::deserialize_binding(const std::string& data
     VehicleBinding binding;
     binding.vin = j["vin"];
     binding.ecu_uid = j["ecu_uid"];
+    // 旧快照可能不含 sn：缺失时留空，由 read_binding 经 SN Provider 补齐
+    // 不得以 ecu_uid 作为缺失 sn 的默认值
+    binding.sn = j.value("sn", "");
     binding.state = static_cast<ProvisionState>(j["state"]);
     binding.locked = j["locked"];
     binding.bound_at = std::chrono::system_clock::from_time_t(j["bound_at"]);

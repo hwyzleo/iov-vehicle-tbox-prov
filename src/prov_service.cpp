@@ -33,6 +33,11 @@ std::string hash_ecu_uid(const std::string& ecu_uid) {
     return hash_identifier("uid", ecu_uid);
 }
 
+std::string hash_sn(const std::string& sn) {
+    // sn 与 ecu_uid 分别记录为 sn_hash / ecu_uid_hash，不得合并为通用 device_id
+    return hash_identifier("sn", sn);
+}
+
 std::string hash_config(const std::vector<uint8_t>& config) {
     return hash_identifier("cfg", std::string(config.begin(), config.end()));
 }
@@ -189,7 +194,34 @@ VehicleBinding ProvService::read_binding() const {
     
     auto stored_binding = storage_->read_vehicle_binding();
     if (stored_binding.has_value()) {
-        return stored_binding.value();
+        binding = stored_binding.value();
+    }
+    
+    // 若存储的 sn 为空（含旧快照），经 SN Provider 补齐到返回值（不写回存储）
+    // sn 与 ecu_uid 独立：SN 失败不得回退 ecu_uid，反之亦然
+    // 仅当存在绑定时补齐 sn（无绑定时不读取 SN）
+    if (stored_binding.has_value() && binding.sn.empty() && sn_provider_) {
+        auto sn_start = std::chrono::steady_clock::now();
+        auto sn_result = sn_provider_->readSn();
+        auto sn_end = std::chrono::steady_clock::now();
+        auto sn_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            sn_end - sn_start).count();
+        
+        if (sn_result.success) {
+            binding.sn = sn_result.sn;
+        } else {
+            // SN 不可用是异常：ERROR 上报；绑定本身仍有效（readBinding status=0）
+            // 不得复制 ecu_uid 作为 sn
+            ProvLogAdapter::binding().error("prov.sn.read_failed",
+                "Failed to read TBOX SN",
+                {tbox::fw::log::Field("sn_source", tbox::fw::log::FieldValue::makeString(sn_result.sn_source)),
+                 tbox::fw::log::Field("environment", tbox::fw::log::FieldValue::makeString(sn_result.environment)),
+                 tbox::fw::log::Field("failure_stage", tbox::fw::log::FieldValue::makeString(sn_result.failure_stage)),
+                 tbox::fw::log::Field("duration_ms", tbox::fw::log::FieldValue::makeInt(sn_duration_ms)),
+                 tbox::fw::log::Field("error_code", tbox::fw::log::FieldValue::makeString(error_code_to_string(ErrorCode::SN_UNAVAILABLE)))}
+            );
+            // sn 保持空，不回退 ecu_uid
+        }
     }
     
     return binding;

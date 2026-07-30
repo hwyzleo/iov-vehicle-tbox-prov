@@ -48,6 +48,7 @@ set(LIB_SOURCES
     src/protected_storage.cpp
     src/framework_store.cpp
     src/ecu_uid.cpp
+    src/tbox_sn_provider.cpp
     src/vin_validator.cpp
     src/data_models.cpp
     src/error_codes.cpp
@@ -140,6 +141,7 @@ add_executable(TboxProvTests
     tests/test_vin_validator.cpp
     tests/test_data_models.cpp
     tests/test_ecu_uid.cpp
+    tests/test_tbox_sn_provider.cpp
     tests/test_ipc.cpp
     tests/test_log_adapter.cpp
     tests/test_context.cpp

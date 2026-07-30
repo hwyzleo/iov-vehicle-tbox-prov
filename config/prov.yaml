@@ -14,6 +14,9 @@ common:
 prov:
   ipc:
     socket_path: "/tmp/tbox-prov.sock"
+  # TBOX 设备序列号（仅测试环境使用，生产环境从 TBOX SN 权威来源读取）
+  # 与 ecu.uid（HSM UID）独立配置、独立验证，不得互相兜底
+  sn: "00000005AA00000001"
 
 # ECU配置
 ecu:

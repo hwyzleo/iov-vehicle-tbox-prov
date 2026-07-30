@@ -74,6 +74,7 @@ TEST_F(ProvIpcDispatcherTest, ReadBindingReturnsAllFields) {
     EXPECT_TRUE(j.contains("status"));
     EXPECT_TRUE(j.contains("vin"));
     EXPECT_TRUE(j.contains("ecu_uid"));
+    EXPECT_TRUE(j.contains("sn"));
     EXPECT_TRUE(j.contains("state"));
     EXPECT_TRUE(j.contains("locked"));
     EXPECT_EQ(j["status"].get<int32_t>(), 0);
@@ -193,4 +194,65 @@ TEST_F(ProvIpcDispatcherTest, ResponseIsValidJson) {
             json::parse(response);
         }) << "Method " << m << " response is not valid JSON";
     }
+}
+
+// ============================================================
+// CR-007: readBinding 兼容矩阵（§9）
+// ============================================================
+
+TEST_F(ProvIpcDispatcherTest, NewServerResponseIsSupersetOfOldSchema) {
+    // 新 Server 响应在旧 schema（vin/ecu_uid/state/locked）基础上新增 sn
+    auto j = dispatch(static_cast<uint32_t>(tbox::prov::ipc::MethodId::READ_BINDING));
+    EXPECT_TRUE(j.contains("vin"));
+    EXPECT_TRUE(j.contains("ecu_uid"));
+    EXPECT_TRUE(j.contains("state"));
+    EXPECT_TRUE(j.contains("locked"));
+    EXPECT_TRUE(j.contains("sn"));     // 新增可忽略字段
+    EXPECT_TRUE(j.contains("status"));
+}
+
+TEST_F(ProvIpcDispatcherTest, OldClientIgnoresUnknownSnField) {
+    // 旧 Client -> 新 Server：旧客户端仅读取旧字段，忽略未知 sn，不抛异常
+    auto j = dispatch(static_cast<uint32_t>(tbox::prov::ipc::MethodId::READ_BINDING));
+    EXPECT_NO_THROW({
+        std::string vin = j.value("vin", "");
+        std::string ecu_uid = j.value("ecu_uid", "");
+        int state = j.value("state", 0);
+        bool locked = j.value("locked", false);
+        (void)vin; (void)ecu_uid; (void)state; (void)locked;
+    });
+}
+
+TEST_F(ProvIpcDispatcherTest, NewClientParsesOldServerResponseWithoutSn) {
+    // 新 Client -> 旧 Server：响应不含 sn，新客户端 sn 为空（SN_UNAVAILABLE），
+    // 不得复制 ecu_uid；既有字段仍可读取
+    json old_server_response = {
+        {"vin", "1HGBH41JXMN109186"},
+        {"ecu_uid", "ECU123456789"},
+        {"state", static_cast<int>(tbox::prov::ProvisionState::BOUND)},
+        {"locked", true},
+        {"status", 0}
+    };
+    // 故意不含 "sn" 字段
+
+    std::string sn = old_server_response.value("sn", "");
+    std::string ecu_uid = old_server_response.value("ecu_uid", "");
+    EXPECT_TRUE(sn.empty());
+    EXPECT_NE(sn, ecu_uid);  // 不得以 ecu_uid 代填
+    EXPECT_EQ(old_server_response.value("vin", ""), "1HGBH41JXMN109186");
+}
+
+TEST_F(ProvIpcDispatcherTest, NewClientParsesNewServerResponseWithSn) {
+    // 新 Client -> 新 Server：返回完整绑定信息（含 sn）
+    json new_server_response = {
+        {"vin", "1HGBH41JXMN109186"},
+        {"ecu_uid", "ECU123456789"},
+        {"sn", "TBOX-SN-12345"},
+        {"state", static_cast<int>(tbox::prov::ProvisionState::BOUND)},
+        {"locked", true},
+        {"status", 0}
+    };
+    std::string sn = new_server_response.value("sn", "");
+    EXPECT_EQ(sn, "TBOX-SN-12345");
+    EXPECT_NE(sn, new_server_response.value("ecu_uid", ""));
 }

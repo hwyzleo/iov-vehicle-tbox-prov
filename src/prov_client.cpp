@@ -127,6 +127,9 @@ VehicleBinding ProvClient::read_binding() {
         auto j = nlohmann::json::parse(response_json);
         binding.vin = j.value("vin", "");
         binding.ecu_uid = j.value("ecu_uid", "");
+        // 新 Client 解析旧 Server 响应时若缺少 sn，留空表示 SN 不可用；
+        // 不得复制 ecu_uid 作为 sn 默认值
+        binding.sn = j.value("sn", "");
         binding.state = static_cast<ProvisionState>(j.value("state", 0));
         binding.locked = j.value("locked", false);
     } catch (...) {
