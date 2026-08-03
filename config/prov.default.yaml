@@ -1,0 +1,50 @@
+# TBOX PROV Service Configuration (production default)
+#
+# Installed to /etc/tbox/conf.d/prov.yaml by the prov-runtime install component.
+# Device-local overrides can be placed in the service working directory as
+# ./prov.yaml (framework-config layer 3, highest priority).
+#
+# Test-only values (prov.uid / prov.sn) are NOT included in this template.
+# Test builds use the repository config/prov.yaml which contains test defaults.
+
+# 公共配置覆盖（common.yaml 的默认值可在此覆盖）
+common:
+  store:
+    root: "/var/tbox"
+  log:
+    file:
+      enabled: true
+      root: "/var/log/tbox"
+
+# PROV 服务专属配置
+prov:
+  ipc:
+    socket_path: "/tmp/tbox-prov.sock"
+  log:
+    level: "info"
+
+# 存储配置
+storage:
+  # 写保护使能
+  enable_write_protection: true
+  # 最大重试次数
+  max_retry_count: 3
+
+# UDS/DID/RID 标识（由 DIAG 消费；PROV 经 DIAG 转发，此处仅保留参考）
+uds:
+  security_access:
+    supported_levels:
+      - 0x27
+      - 0x29
+    seed_length: 4
+    key_length: 4
+
+did:
+  vin: 0xF190
+  vehicle_binding: 0xF191
+  provision_state: 0xF192
+  vehicle_config: 0xF193
+  production_info: 0xF194
+
+rid:
+  rewrite_routine: 0xFF00
