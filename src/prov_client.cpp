@@ -1,6 +1,7 @@
 #include "tbox/prov/client.h"
 #include "ipc_protocol.h"
-#include "prov_log_adapter.h"
+#include "log.h"          // framework-log 公开头（Logger）
+#include "log_types.h"    // framework-log 公开头（Field / FieldValue）
 #include "ipc.h"
 #include "ipc_types.h"
 #include <nlohmann/json.hpp>
@@ -42,7 +43,9 @@ public:
 
         if (fw_status < 0) {
             // 客户端传输错误（已含一次重连重试）
-            ProvLogAdapter::ipc().error("prov.ipc.client_transport_error",
+            // client SDK 日志：直接使用 framework-log（TBOX-PROV-DSN-CR-009 修复：
+            // SDK 不依赖 daemon 内部 ProvLogAdapter 符号，外部消费方可独立链接）
+            tbox::fw::log::Logger::get("ipc").error("prov.ipc.client_transport_error",
                 "IPC transport error",
                 {tbox::fw::log::Field("method_id", tbox::fw::log::FieldValue::makeInt(static_cast<int>(method_id))),
                  tbox::fw::log::Field("fw_status", tbox::fw::log::FieldValue::makeInt(fw_status))}
@@ -52,7 +55,7 @@ public:
 
         if (fw_status > 0) {
             // 服务端传输/handler 错误（FW-03xx）
-            ProvLogAdapter::ipc().error("prov.ipc.server_error",
+            tbox::fw::log::Logger::get("ipc").error("prov.ipc.server_error",
                 "IPC server error",
                 {tbox::fw::log::Field("method_id", tbox::fw::log::FieldValue::makeInt(static_cast<int>(method_id))),
                  tbox::fw::log::Field("fw_status", tbox::fw::log::FieldValue::makeInt(fw_status))}

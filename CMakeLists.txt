@@ -97,10 +97,13 @@ target_include_directories(tbox_prov_client
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-# PRIVATE: framework-ipc (传输细节不泄漏给调用方) + nlohmann_json (公开头文件未使用)
+# PRIVATE: framework-ipc (传输细节不泄漏给调用方) + framework-log
+# (prov_client 直接使用 Logger::get；TBOX-PROV-DSN-CR-009 修复：
+#  SDK 不依赖 daemon 内部 ProvLogAdapter) + nlohmann_json (公开头文件未使用)
 target_link_libraries(tbox_prov_client
     PRIVATE
         TBoxFramework::ipc
+        TBoxFramework::log
         nlohmann_json::nlohmann_json
 )
 target_compile_definitions(tbox_prov_client PRIVATE TEST_ENVIRONMENT)
