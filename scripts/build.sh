@@ -7,8 +7,14 @@
 # 选项:
 #   --clean      清理构建目录后重新构建
 #   --no-test    跳过测试步骤
-#   --release    Release 模式构建（默认 Debug）
+#   --release    Release 模式构建（默认）
+#   --debug      Debug 模式构建
 #   --help       显示帮助信息
+#
+# 注意：本脚本仅用于本机（host）构建与单元测试。
+#       交叉编译（aarch64 / Orin 产物）统一在 iov-vehicle-tbox-build 项目下进行：
+#         cd ../iov-vehicle-tbox-build
+#         python3 -m tbox_build build --platform orin --profile release --service prov
 #
 
 set -e  # 遇到错误立即退出
@@ -47,15 +53,19 @@ show_help() {
     echo "选项:"
     echo "  --clean      清理构建目录后重新构建"
     echo "  --no-test    跳过测试步骤"
-    echo "  --release    Release 模式构建（默认 Debug）"
+    echo "  --release    Release 模式构建（默认）"
+    echo "  --debug      Debug 模式构建"
     echo "  --help       显示帮助信息"
     echo ""
     echo "示例:"
     echo "  $0                  # 完整构建（Release + 测试）"
     echo "  $0 --no-test        # 仅构建，跳过测试"
     echo "  $0 --clean          # 清理后重新构建"
-    echo "  $0 --release        # Release 模式构建"
+    echo "  $0 --debug          # Debug 模式构建"
     echo "  $0 --clean --no-test  # 清理构建，跳过测试"
+    echo ""
+    echo "交叉编译（aarch64 / Orin 产物）请到 iov-vehicle-tbox-build 项目进行："
+    echo "  cd ../iov-vehicle-tbox-build && python3 -m tbox_build build --service prov"
 }
 
 # 打印带颜色的消息
@@ -221,6 +231,10 @@ parse_args() {
                 BUILD_TYPE="Release"
                 shift
                 ;;
+            --debug)
+                BUILD_TYPE="Debug"
+                shift
+                ;;
             --help)
                 show_help
                 exit 0
@@ -256,7 +270,9 @@ main() {
     fi
 
     # 安装依赖
-    install_dependencies
+    if ! install_dependencies; then
+        exit 1
+    fi
 
     # 配置项目
     if ! configure_project; then

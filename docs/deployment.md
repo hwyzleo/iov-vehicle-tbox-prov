@@ -75,30 +75,19 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-### 交叉编译
+### 交叉编译（aarch64 / Orin）
+
+交叉编译统一由 [iov-vehicle-tbox-build](../../iov-vehicle-tbox-build) 编排器负责，
+本仓库不单独进行交叉编译：
 
 ```bash
-# 安装交叉编译工具链
-sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-
-# 配置交叉编译
-cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=../toolchain-aarch64-linux-gnu.cmake \
-         -DCMAKE_BUILD_TYPE=Release
-
-# 编译
-make -j$(nproc)
+cd ../iov-vehicle-tbox-build
+python3 -m tbox_build build --platform orin --profile release --service prov
+# 或整套：./ci/build-in-docker.sh --set tbox-orin-minimal
 ```
 
-### Docker编译
-
-```bash
-# 构建Docker镜像
-docker build -t tbox-prov-builder -f Dockerfile.cross .
-
-# 运行编译
-docker run -v $(pwd):/workspace tbox-prov-builder
-```
+> 工具链（`orin-aarch64.cmake`）、sysroot（`orin-r35.3.1`）与目标依赖
+> staging 均由 build 项目统一注入。
 
 ## 配置说明
 

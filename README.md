@@ -117,14 +117,13 @@ iov-vehicle-tbox-prov/
 ├── config/                     # 配置文件
 │   └── prov_config.yaml        # 服务配置文件示例（部署为 /etc/tbox/conf.d/prov.yaml）
 ├── scripts/                    # 脚本
-│   ├── build.sh                # 构建脚本
+│   ├── build.sh                # 本机构建脚本（仅 host；交叉编译见 tbox-build）
 │   └── test.sh                 # 测试脚本
-└── toolchain-aarch64-linux-gnu.cmake # 交叉编译工具链
 ```
 
 ## 快速开始
 
-> **详细编译指南**：本地编译 vs Docker 交叉编译的区别和使用场景，请参考 [编译与验证指南](docs/build-and-verify.md)
+> **详细编译指南**：本地编译 vs 交叉编译的区别和使用场景，请参考 [编译与验证指南](docs/build-and-verify.md)
 
 ### 环境要求
 
@@ -153,20 +152,19 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-#### 交叉编译
+#### 交叉编译（aarch64 / Orin，用于部署）
+
+交叉编译**不在本仓库进行**，统一由 [iov-vehicle-tbox-build](../iov-vehicle-tbox-build) 编排器负责
+（提供 Orin 工具链、sysroot 与目标依赖 staging）：
 
 ```bash
-# 安装交叉编译工具链
-sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-
-# 配置交叉编译
-cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=../toolchain-aarch64-linux-gnu.cmake \
-         -DCMAKE_BUILD_TYPE=Release
-
-# 编译
-make -j$(nproc)
+cd ../iov-vehicle-tbox-build
+python3 -m tbox_build build --platform orin --profile release --service prov
+# 或整套：./ci/build-in-docker.sh --set tbox-orin-minimal
 ```
+
+> 本仓库的 `scripts/build.sh` 仅用于本机开发与单元测试。
+> 详见 [编译与验证指南](docs/build-and-verify.md)。
 
 ### 运行测试
 
@@ -288,7 +286,7 @@ auto state = service.get_provision_state();
 - [API 文档](docs/api.md) - 详细的 API 说明
 - [诊断规范](docs/diagnostic.md) - UDS 诊断接口规范
 - [部署文档](docs/deployment.md) - 部署和运维指南
-- [编译与验证指南](docs/build-and-verify.md) - 本地编译 vs Docker 交叉编译
+- [编译与验证指南](docs/build-and-verify.md) - 本地编译 vs 交叉编译
 
 ## 依赖项目
 

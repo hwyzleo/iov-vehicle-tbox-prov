@@ -21,8 +21,7 @@ iov-vehicle-tbox-prov/
 ├── tests/                      # 测试文件目录
 ├── docs/                       # 文档目录
 ├── config/                     # 配置文件目录
-├── scripts/                    # 脚本目录
-└── Dockerfile.cross            # 交叉编译 Docker 文件
+└── scripts/                    # 脚本目录（本机构建/测试）
 ```
 
 ### 2. 核心模块
@@ -80,14 +79,14 @@ iov-vehicle-tbox-prov/
 - API 文档: 详细的 API 说明和使用示例
 - 诊断规范: UDS 诊断接口规范
 - 部署文档: 部署和运维指南
-- 编译与验证指南: 本地编译 vs Docker 交叉编译
+- 编译与验证指南: 本地编译 vs 交叉编译
 - 开发计划: 详细的开发计划和时间安排
 
 ### 5. 构建和部署
 
 - 支持本地编译和交叉编译
 - 提供 Conan 依赖管理
-- 提供 Docker 交叉编译支持
+- 通过 Conan aarch64 host profile 支持交叉编译
 - 提供 systemd 服务配置
 
 ## 技术要点
