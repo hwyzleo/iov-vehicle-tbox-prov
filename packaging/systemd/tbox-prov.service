@@ -1,12 +1,11 @@
 [Unit]
 Description=TBOX Provisioning Service
-Documentation=https://app.notion.com/TBOX-PROV-SPEC
 After=network.target
 Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/tbox-prov
+ExecStart=/usr/bin/tbox_prov
 Restart=on-failure
 RestartSec=5
 UMask=0077
@@ -15,7 +14,9 @@ UMask=0077
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-PrivateTmp=true
+# 不启用 PrivateTmp：PROV 是 IPC 服务端，创建 /tmp/tbox-prov.sock 供
+# SEC/MQTT/TSP 等消费方连接。PrivateTmp 会为单元挂载私有 /tmp，使该 socket
+# 对其他服务不可见，导致依赖 PROV 的服务初始化失败（如 SEC exit 255）。
 ReadWritePaths=/var/tbox /var/log/tbox /tmp
 
 # Resource limits
