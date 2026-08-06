@@ -1,6 +1,7 @@
 #include "prov_service.h"
 #include "framework_store.h"
 #include "config.h"
+#include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <string>
 
@@ -19,6 +20,73 @@ void print_usage() {
     std::cout << "  get_state               - Get provision state" << std::endl;
     std::cout << "  write_config <hex>      - Write vehicle config" << std::endl;
     std::cout << "  authorize <vin>         - Authorize rewrite" << std::endl;
+    std::cout << "  check-config <path>     - Validate a PROV config file (no side effects)" << std::endl;
+}
+
+// TBOX-PROV-DSN-CR-010 §8: 无副作用配置检查命令。
+// 校验目标：正式 /etc/tbox/conf.d/prov.yaml（默认模板安装结果或 BUILD Orin 覆盖后最终文件）。
+// 约束：无网络、无 NVM/Store 写入、无 IPC 监听、无 provisioning 秘密访问；
+//       失败输出仅报告文件/字段路径/原因，不输出 UID/SN/VIN 原值。
+// 退出码：0 = 通过，1 = 失败。
+int check_config(const std::string& path) {
+    YAML::Node config;
+    try {
+        config = YAML::LoadFile(path);
+    } catch (const std::exception& e) {
+        std::cerr << "FAIL: cannot parse " << path << ": " << e.what() << std::endl;
+        return 1;
+    }
+
+    if (!config.IsMap()) {
+        std::cerr << "FAIL: root node is not a mapping" << std::endl;
+        return 1;
+    }
+
+    // §9: 正式 conf.d/prov.yaml 不得包含顶层 common:（由 BUILD common.yaml 唯一提供）
+    if (config["common"]) {
+        std::cerr << "FAIL: forbidden top-level key 'common' present "
+                  << "(owned by BUILD /etc/tbox/common.yaml)" << std::endl;
+        return 1;
+    }
+
+    // prov.ipc.socket_path 在正式部署中必填
+    if (!config["prov"] || !config["prov"]["ipc"] ||
+        !config["prov"]["ipc"]["socket_path"]) {
+        std::cerr << "FAIL: missing required field 'prov.ipc.socket_path'" << std::endl;
+        return 1;
+    }
+    if (!config["prov"]["ipc"]["socket_path"].IsScalar()) {
+        std::cerr << "FAIL: 'prov.ipc.socket_path' must be a string" << std::endl;
+        return 1;
+    }
+
+    // §9/§13: prov.uid / prov.sn 仅测试语义，正式配置出现即 fail-closed
+    // （不输出原值）
+    if (config["prov"]["uid"] || config["prov"]["sn"]) {
+        std::cerr << "FAIL: test-only field 'prov.uid'/'prov.sn' present; "
+                  << "must not appear in production conf.d/prov.yaml" << std::endl;
+        return 1;
+    }
+
+    // storage 类型检查（可选字段）
+    if (config["storage"]) {
+        auto storage = config["storage"];
+        if (storage["enable_write_protection"] &&
+            !storage["enable_write_protection"].IsScalar()) {
+            std::cerr << "FAIL: 'storage.enable_write_protection' must be a boolean"
+                      << std::endl;
+            return 1;
+        }
+        if (storage["max_retry_count"] &&
+            !storage["max_retry_count"].IsScalar()) {
+            std::cerr << "FAIL: 'storage.max_retry_count' must be an integer"
+                      << std::endl;
+            return 1;
+        }
+    }
+
+    std::cout << "PASS: " << path << std::endl;
+    return 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -28,6 +96,15 @@ int main(int argc, char* argv[]) {
     }
 
     std::string command = argv[1];
+
+    // check-config: 无副作用配置校验，不加载运行时配置/不初始化 store/IPC/SE
+    if (command == "check-config") {
+        if (argc < 3) {
+            std::cerr << "Usage: prov_cli check-config <config-path>" << std::endl;
+            return 1;
+        }
+        return check_config(argv[2]);
+    }
 
     // 加载框架配置
     auto err = CONFIG_MANAGER.load("prov");

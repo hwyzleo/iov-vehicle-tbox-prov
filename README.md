@@ -114,8 +114,13 @@ iov-vehicle-tbox-prov/
 │   ├── diagnostic.md           # 诊断规范
 │   ├── deployment.md           # 部署文档
 │   └── build-and-verify.md     # 编译与验证指南
-├── config/                     # 配置文件
-│   └── prov_config.yaml        # 服务配置文件示例（部署为 /etc/tbox/conf.d/prov.yaml）
+├── config/                     # 配置资产（TBOX-PROV-DSN-CR-010）
+│   ├── dev/                    # 开发调试配置（不安装，不进发布包）
+│   │   ├── common.yaml
+│   │   └── prov.yaml
+│   ├── schema/
+│   │   └── prov.schema.yaml    # 正式 conf.d/prov.yaml 校验 schema
+│   └── prov.default.yaml       # 发布默认模板（安装为 /etc/tbox/conf.d/prov.yaml）
 ├── scripts/                    # 脚本
 │   ├── build.sh                # 本机构建脚本（仅 host；交叉编译见 tbox-build）
 │   └── test.sh                 # 测试脚本
@@ -186,13 +191,19 @@ ctest --output-on-failure
 
 ## 配置说明
 
-使用框架 `ConfigManager` 三层配置体系：
+使用框架 `ConfigManager` 三层配置体系（TBOX-PROV-DSN-CR-010）：
 
-| 层级 | 文件路径 | 是否必需 |
-|------|----------|----------|
-| Common | `/etc/tbox/common.yaml` | 是 |
-| Service | `/etc/tbox/conf.d/prov.yaml` | 否 |
-| Local | `./prov.yaml`（当前工作目录） | 否 |
+| 层级 | 文件路径 | 是否必需 | 所有权 |
+|------|----------|----------|--------|
+| Common | `/etc/tbox/common.yaml` | 是 | BUILD 唯一提供（PROV 不安装） |
+| Service | `/etc/tbox/conf.d/prov.yaml` | 否 | PROV 默认模板 + BUILD Orin 覆盖 |
+| Local | `./prov.yaml`（当前工作目录） | 否 | 仅测试构建覆盖（不进生产包） |
+
+> 正式 `/etc/tbox/common.yaml` 由 BUILD `configs/orin/rootfs/etc/tbox/common.yaml` 唯一提供，
+> PROV 仓库不再安装或内联副本（CR-010 §4/§6）。`/etc/tbox/conf.d/prov.yaml` 由 PROV
+> `config/prov.default.yaml` 安装，BUILD 有 Orin 平台文件时整文件覆盖。`./prov.yaml` 仅在
+> 测试构建中为 `prov.uid`/`prov.sn` 提供可选值。配置校验入口：`prov_cli check-config <path>`
+> 或 `config/schema/prov.schema.yaml`。
 
 服务专属配置示例（`/etc/tbox/conf.d/prov.yaml`）：
 

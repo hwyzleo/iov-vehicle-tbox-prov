@@ -1,6 +1,9 @@
-# TBOX PROV Service Configuration
-# 此文件可部署为 /etc/tbox/conf.d/prov.yaml 或作为项目级覆盖（./config/prov.yaml）
-# 公共配置（common / monitoring）见 common.yaml，此处可按需覆盖公共参数
+# TBOX PROV Service Configuration (DEVELOPMENT-ONLY)
+# TBOX-PROV-DSN-CR-010 §3/PROV-CONFIG-REQ-001: 独立调试 PROV 参数。
+# 仅用于本地启动脚本/单元测试/开发调试，不由 prov-runtime 安装，不进入 BUILD staging
+# 或正式发布包。含明确测试占位值（prov.sn / ecu.uid），非真实设备值。
+# 正式 /etc/tbox/conf.d/prov.yaml 由 config/prov.default.yaml 安装，并由 BUILD Orin 覆盖。
+# 公共配置（common）见 dev/common.yaml，此处可按需覆盖公共参数。
 
 # 公共配置覆盖示例（按需启用）
 common:

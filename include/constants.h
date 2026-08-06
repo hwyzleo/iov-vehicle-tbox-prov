@@ -44,8 +44,9 @@ namespace NvmPartition {
 }
 
 // 配置文件路径（框架使用 /etc/tbox/ 作为默认配置根目录）
-// 服务专属配置: /etc/tbox/conf.d/prov.yaml
-// 本地覆盖配置: ./prov.yaml
+// 公共配置: /etc/tbox/common.yaml（BUILD 唯一提供，PROV 不安装；TBOX-PROV-DSN-CR-010 §4）
+// 服务专属配置: /etc/tbox/conf.d/prov.yaml（prov.default.yaml 安装 + BUILD Orin 覆盖）
+// 本地覆盖配置: ./prov.yaml（仅测试构建覆盖，不进生产包；TBOX-PROV-DSN-CR-010 §7）
 
 } // namespace prov
 } // namespace tbox

@@ -1,5 +1,8 @@
-# TBOX Common Configuration
-# 此文件可部署为 /etc/tbox/common.yaml（框架公共配置，跨服务共享）
+# TBOX Common Configuration (DEVELOPMENT-ONLY)
+# TBOX-PROV-DSN-CR-010 §3/PROV-CONFIG-REQ-001: 独立调试公共配置。
+# 仅用于本地启动脚本/单元测试/开发调试，不由 prov-runtime 安装，不进入 BUILD staging
+# 或正式发布包。正式 /etc/tbox/common.yaml 由 BUILD configs/orin/rootfs/etc/tbox/common.yaml
+# 唯一提供。
 
 common:
   store:

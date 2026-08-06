@@ -142,14 +142,12 @@ install(FILES packaging/systemd/tbox-prov.service
 )
 
 # --- prov-runtime: default config (production-safe, no test uid/sn) ---
+# TBOX-PROV-DSN-CR-010 §4: 仅安装 prov.default.yaml -> /etc/tbox/conf.d/prov.yaml。
+#   正式 /etc/tbox/common.yaml 不再由 PROV 安装（由 BUILD 唯一提供）。
+#   config/dev/** 调试文件不安装（禁止 install(DIRECTORY config/ ...) 递归规则）。
 install(FILES config/prov.default.yaml
     DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/tbox/conf.d
     RENAME prov.yaml
-    COMPONENT prov-runtime
-)
-
-install(FILES config/common.yaml
-    DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/tbox
     COMPONENT prov-runtime
 )
 
@@ -214,6 +212,7 @@ if(GTest_FOUND)
         tests/test_log_integration.cpp
         tests/test_prov_ipc_dispatcher.cpp
         tests/test_prov_application.cpp
+        tests/test_config_assets.cpp
     )
     target_link_libraries(TboxProvTests PRIVATE TboxProvLib tbox_prov_client GTest::GTest GTest::Main)
     target_compile_definitions(TboxProvTests PRIVATE TEST_ENVIRONMENT)

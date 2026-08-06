@@ -173,13 +173,16 @@ std::string ecu_uid = binding.ecu_uid;
 
 ### 配置文件位置
 
-使用框架 `ConfigManager` 三层配置体系：
+使用框架 `ConfigManager` 三层配置体系（TBOX-PROV-DSN-CR-010）：
 
-| 层级 | 文件路径 | 是否必需 |
-|------|----------|----------|
-| Common | `/etc/tbox/common.yaml` | 是 |
-| Service | `/etc/tbox/conf.d/prov.yaml` | 否 |
-| Local | `./prov.yaml`（当前工作目录） | 否 |
+| 层级 | 文件路径 | 是否必需 | 所有权 |
+|------|----------|----------|--------|
+| Common | `/etc/tbox/common.yaml` | 是 | BUILD 唯一提供（PROV 不安装） |
+| Service | `/etc/tbox/conf.d/prov.yaml` | 否 | PROV 默认模板 + BUILD Orin 覆盖 |
+| Local | `./prov.yaml`（当前工作目录） | 否 | 仅测试构建覆盖（不进生产包） |
+
+> 正式 `/etc/tbox/common.yaml` 由 BUILD 唯一提供，PROV 不再安装（CR-010 §4）。
+> `./prov.yaml` 仅在测试构建中提供 `prov.uid`/`prov.sn`，不进生产包。
 
 ### 配置文件格式
 

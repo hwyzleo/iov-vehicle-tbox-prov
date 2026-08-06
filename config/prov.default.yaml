@@ -1,20 +1,15 @@
-# TBOX PROV Service Configuration (production default)
+# TBOX PROV Service Configuration (production default template)
 #
-# Installed to /etc/tbox/conf.d/prov.yaml by the prov-runtime install component.
-# Device-local overrides can be placed in the service working directory as
-# ./prov.yaml (framework-config layer 3, highest priority).
+# TBOX-PROV-DSN-CR-010 §5: 发布默认模板边界
+#   - 由 prov-runtime 安装为 /etc/tbox/conf.d/prov.yaml（文件名无 .default）。
+#   - 不含顶层 common:（正式 common 由 BUILD configs/orin/rootfs/etc/tbox/common.yaml
+#     唯一提供；PROV 只消费，不安装、不内联副本）。
+#   - 不含 Orin 地址、车型、VIN、设备唯一 UID/SN、证书或 Token。
+#   - 不含 prov.uid / prov.sn 实例值（测试通过工作目录 ./prov.yaml 显式提供）。
+#   - 生产 fail-closed 语义由既有编译门控和业务校验实现，本模板不降低。
 #
-# Test-only values (prov.uid / prov.sn) are NOT included in this template.
-# Test builds use the repository config/prov.yaml which contains test defaults.
-
-# 公共配置覆盖（common.yaml 的默认值可在此覆盖）
-common:
-  store:
-    root: "/var/tbox"
-  log:
-    file:
-      enabled: true
-      root: "/var/log/tbox"
+# BUILD 有 configs/orin/rootfs/etc/tbox/conf.d/prov.yaml 时整文件覆盖本模板
+# （CR-010 §6：不执行 YAML 深度合并）。
 
 # PROV 服务专属配置
 prov:

@@ -31,7 +31,7 @@ protected:
         }
         
         // 复制配置文件到测试目录
-        std::filesystem::path src_config = std::filesystem::current_path().parent_path() / "config" / "prov.yaml";
+        std::filesystem::path src_config = std::filesystem::current_path().parent_path() / "config" / "dev" / "prov.yaml";
         std::filesystem::path dst_config = config_dir / "prov.yaml";
         if (std::filesystem::exists(src_config)) {
             std::filesystem::copy_file(src_config, dst_config, std::filesystem::copy_options::overwrite_existing);

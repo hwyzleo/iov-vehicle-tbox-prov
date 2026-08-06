@@ -1,0 +1,137 @@
+# PROV 配置 Schema (declarative)
+#
+# TBOX-PROV-DSN-CR-010 §8/§9: 校验正式 /etc/tbox/conf.d/prov.yaml。
+#
+# 消费方：
+#   - BUILD release-set 锁定版本的 schema 检查器；
+#   - 本仓库 `prov_cli check-config <path>` 无副作用检查命令。
+# 校验目标：config/prov.default.yaml 安装结果，或 BUILD Orin 覆盖后的最终文件。
+# 检查命令约束（§8）：无网络、无 NVM/Store 写入、无 IPC 监听、无 provisioning 秘密
+# 访问；失败输出仅报告文件、字段路径和原因，不输出 UID/SN/VIN 原值。
+
+schema_version: "1.0"
+target_path: /etc/tbox/conf.d/prov.yaml
+default_source: config/prov.default.yaml
+
+# --- 根节点约束 ---
+root:
+  type: mapping
+  # 正式 conf.d/prov.yaml 不得包含顶层 common:
+  # （由 BUILD common.yaml 唯一提供，PROV 不内联副本）
+  forbidden_top_level_keys:
+    - common
+  # 未知顶层字段策略：生产 fail-closed（拒绝）
+  unknown_keys_policy: reject
+
+# --- prov 节点（PROV 服务专属配置） ---
+prov:
+  type: mapping
+  required: false
+  fields:
+    ipc:
+      type: mapping
+      required: false
+      fields:
+        socket_path:
+          type: string
+          required: true
+          description: "PROV IPC Unix socket 路径"
+    log:
+      type: mapping
+      required: false
+      fields:
+        level:
+          type: string
+          required: false
+          enum: [trace, debug, info, warn, error]
+          default: info
+    # prov.uid / prov.sn: 仅测试语义，非生产必填项。
+    # 默认模板不得填入设备实例值；测试通过工作目录 ./prov.yaml 显式提供。
+    uid:
+      type: string
+      required: false
+      test_only: true
+      description: "仅测试构建编译开关允许读取；生产不得依赖"
+    sn:
+      type: string
+      required: false
+      test_only: true
+      description: "仅测试构建编译开关允许读取；不得从 prov.uid/ecu_uid 代填"
+
+# --- storage 节点 ---
+storage:
+  type: mapping
+  required: false
+  fields:
+    enable_write_protection:
+      type: boolean
+      required: false
+      default: true
+    max_retry_count:
+      type: integer
+      required: false
+      min: 0
+      max: 100
+      default: 3
+
+# --- uds 节点（DID/RID/NRC 由 DIAG 消费，此处仅保留参考标识） ---
+uds:
+  type: mapping
+  required: false
+  fields:
+    security_access:
+      type: mapping
+      required: false
+      fields:
+        supported_levels:
+          type: sequence
+          required: false
+          item_type: integer
+        seed_length:
+          type: integer
+          required: false
+        key_length:
+          type: integer
+          required: false
+
+did:
+  type: mapping
+  required: false
+  fields:
+    vin:
+      type: integer
+      required: false
+    vehicle_binding:
+      type: integer
+      required: false
+    provision_state:
+      type: integer
+      required: false
+    vehicle_config:
+      type: integer
+      required: false
+    production_info:
+      type: integer
+      required: false
+
+rid:
+  type: mapping
+  required: false
+  fields:
+    rewrite_routine:
+      type: integer
+      required: false
+
+# --- fail-closed 条件（§9） ---
+fail_closed:
+  - 配置文件损坏或 YAML 解析失败
+  - 字段类型错误（如期望 integer 实为 string）
+  - 缺少生产关键字段（prov.ipc.socket_path 在正式部署中必填）
+  - 正式 conf.d/prov.yaml 出现顶层 common:
+  - 出现真实 UID/SN/VIN/证书/Token/KEK 等设备实例或秘密值
+
+# --- 兼容规则（§9） ---
+compatibility:
+  additive_optional: "新增兼容可选字段或调整安全默认值时，BUILD Orin 文件可不修改"
+  breaking: "新增必填字段、删除/重命名字段、改变类型/结构时，平台文件须同步并由 CI 阻止不兼容包"
+  semantic_change: "改变 UID/SN、加载优先级或生产 fail-closed 语义须另立 PROV 配对 CR"

@@ -93,13 +93,20 @@ python3 -m tbox_build build --platform orin --profile release --service prov
 
 ### 配置文件
 
-使用框架 `ConfigManager` 三层配置体系：
+使用框架 `ConfigManager` 三层配置体系（TBOX-PROV-DSN-CR-010）：
 
-| 层级 | 文件路径 | 是否必需 |
-|------|----------|----------|
-| Common | `/etc/tbox/common.yaml` | 是 |
-| Service | `/etc/tbox/conf.d/prov.yaml` | 否 |
-| Local | `./prov.yaml`（当前工作目录） | 否 |
+| 层级 | 文件路径 | 是否必需 | 所有权 |
+|------|----------|----------|--------|
+| Common | `/etc/tbox/common.yaml` | 是 | BUILD 唯一提供（PROV 不安装） |
+| Service | `/etc/tbox/conf.d/prov.yaml` | 否 | PROV 默认模板 + BUILD Orin 覆盖 |
+| Local | `./prov.yaml`（当前工作目录） | 否 | 仅测试构建覆盖（不进生产包） |
+
+> 正式 `/etc/tbox/common.yaml` 由 BUILD `configs/orin/rootfs/etc/tbox/common.yaml` 唯一提供，
+> PROV 仓库不再安装或内联副本（CR-010 §4/§6）。`/etc/tbox/conf.d/prov.yaml` 由 PROV
+> `config/prov.default.yaml` 安装，BUILD 有 Orin 平台文件时整文件覆盖，并按 `release-managed +
+> replace` 策略备份、部署、冒烟与回退（CR-010 §10）。`./prov.yaml` 仅在测试构建中为
+> `prov.uid`/`prov.sn` 提供可选值，不进生产包。配置校验入口：`prov_cli check-config <path>`
+> 或 `config/schema/prov.schema.yaml`。
 
 服务专属配置示例（`/etc/tbox/conf.d/prov.yaml`）：
 
